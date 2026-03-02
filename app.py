@@ -5,7 +5,6 @@ from datetime import datetime
 
 # --- KONFIGURATION ---
 SHEET_URL "SHEET_URL = "https://docs.google.com/spreadsheets/d/1qPHocyweIjksO6zhGVAqlxo4IqIeNM_8FmmStAt9eKc/edit"
-" 
 
 st.set_page_config(page_title="Einsatzbericht Cloud", layout="centered")
 st.title("📋 Einsatzbericht")
