@@ -10,11 +10,6 @@ st.set_page_config(page_title="Einsatzliste OA Nacht", page_icon="📝", layout=
 PASSWORT = "1234" 
 DATEI = "zentral_archiv.csv"
 
-# Deine festen Empfänger (Wichtig: Keine Leerzeichen für den Link-Button)
-REZEPTIENTEN = "Kevin.woelki@augsburg.de,kevinworlki@outlook.de"
-# Wir säubern die Empfängerliste für den Link
-MAIL_TO_LIST = REZEPTIENTEN.replace(" ", "")
-
 # --- LOGIN-LOGIK ---
 if "autentifiziert" not in st.session_state:
     st.session_state["autentifiziert"] = False
@@ -48,7 +43,6 @@ with st.sidebar:
 # --- HAUPTSEITE ---
 st.title("📝 Einsatzliste Ordnungsamt Nacht")
 
-# Formular
 with st.expander("➕ Neuen Bericht erstellen", expanded=True):
     with st.form("input_form", clear_on_submit=False):
         col1, col2 = st.columns(2)
@@ -78,43 +72,17 @@ if submit and text:
     df = lade_daten()
     df = pd.concat([df, neue_zeile], ignore_index=True)
     df.to_csv(DATEI, index=False)
-    
     st.success("✅ Bericht gespeichert!")
     
-    # --- SOFORT-VERSAND ---
-    st.write("### 📤 Jetzt direkt versenden:")
-    v_col1, v_col2 = st.columns(2)
+    # E-Mail Link sicher bauen
+    empfaenger = "Kevin.woelki@augsburg.de,kevinworlki@outlook.de"
+    betreff = f"Einsatzbericht {d} {z}"
+    mail_body = f"Datum: {d}\nZeit: {z}\nZeugen: {zeuge}\nKräfte: Pol:{'Ja' if pol else 'Nein'}, RD:{'Ja' if rd else 'Nein'}, FS:{'Ja' if fs else 'Nein'} ({fs_info})\n\nBericht:\n{text}"
     
-    mail_inhalt = (
-        f"EINSATZBERICHT - ORDNUNGSAMT NACHT\n"
-        f"----------------------------------\n"
-        f"Datum: {d}\nZeit: {z}\nZeugen: {zeuge}\n\n"
-        f"Kräfte vor Ort:\n"
-        f"- Polizei: {'Ja' if pol else 'Nein'}\n"
-        f"- Rettungsdienst: {'Ja' if rd else 'Nein'}\n"
-        f"- Funkstreife: {'Ja' if fs else 'Nein'} ({fs_info})\n\n"
-        f"Sachverhalt:\n{text}"
-    )
+    # WICHTIG: Komplettes Encoding des gesamten Links
+    mailto_link = f"mailto:{empfaenger}?subject={urllib.parse.quote(betreff)}&body={urllib.parse.quote(mail_body)}"
     
-    betreff = urllib.parse.quote(f"Einsatzbericht {d} {z}")
-    body = urllib.parse.quote(mail_inhalt)
-    
-    # Mailto-Link ohne Leerzeichen
-    mail_link = f"mailto:{MAIL_TO_LIST}?subject={betreff}&body={body}"
-    v_col1.link_button("📧 E-Mail an Zentrale senden", mail_link, use_container_width=True)
-    
-    # PDF Erstellung
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", "B", 16)
-    pdf.cell(200, 10, txt="EINSATZLISTE OA NACHT", ln=True, align='C')
-    pdf.set_font("Arial", size=12)
-    pdf.ln(10)
-    clean_pdf = mail_inhalt.replace('ä','ae').replace('ö','oe').replace('ü','ue').replace('ß','ss')
-    pdf.multi_cell(0, 10, txt=clean_pdf)
-    pdf_out = pdf.output(dest='S').encode('latin-1', 'ignore')
-    
-    v_col2.download_button("📄 PDF herunterladen", pdf_out, f"Einsatz_{d}.pdf", "application/pdf", use_container_width=True)
+    st.link_button("📧 E-Mail an Zentrale senden", mailto_link, use_container_width=True)
 
 # --- ARCHIV ---
 st.divider()
@@ -123,11 +91,14 @@ daten = lade_daten()
 if not daten.empty:
     for i, row in daten.iloc[::-1].iterrows():
         with st.expander(f"📄 {row['Datum']} - {row['Zeit']} - {row['Zeugen'][:15]}..."):
-            st.write(f"**Details:** Polizei: {row['Polizei']} | RD: {row['Rettungsdienst']} | FS: {row['Funkstreife']}")
-            st.info(f"**Bericht:**\n\n{row['Bericht']}")
+            st.write(f"**Bericht:** {row['Bericht']}")
             
-            # Link-Fix auch hier im Archiv
+            # Link im Archiv ebenfalls absichern
+            m_empf = "Kevin.woelki@augsburg.de,kevinworlki@outlook.de"
+            m_subj = urllib.parse.quote(f"Kopie Bericht {row['Datum']}")
             m_body = urllib.parse.quote(f"Bericht vom {row['Datum']}:\n\n{row['Bericht']}")
-            st.link_button("📧 Erneut senden", f"mailto:{MAIL_TO_LIST}?subject=Kopie Einsatzbericht&body={m_body}", key=f"old_mail_{i}")
-else:
-    st.info("Noch keine Berichte im Archiv.")
+            
+            # Hier bauen wir den Link so zusammen, dass keine Leerzeichen stören
+            final_link = f"mailto:{m_empf}?subject={m_subj}&body={m_body}"
+            
+            st.link_button("📧 Erneut senden", final_link, key=f"arch_mail_{i}")
