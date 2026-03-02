@@ -7,26 +7,37 @@ from fpdf import FPDF
 # --- DESIGN-KONFIGURATION ---
 st.set_page_config(page_title="Einsatzliste OA Nacht", page_icon="🚓", layout="wide")
 
-# CSS für modernes Interface
 st.markdown("""
     <style>
     .report-card {
         background-color: #f8f9fa;
         border-radius: 12px;
-        padding: 20px;
+        padding: 15px;
         border-left: 6px solid #004b95;
-        margin-bottom: 15px;
-        box-shadow: 2px 2px 10px rgba(0,0,0,0.1);
+        margin-bottom: 10px;
+        box-shadow: 2px 2px 8px rgba(0,0,0,0.05);
     }
-    .stButton>button {
-        border-radius: 8px;
+    .card-header {
+        font-size: 1.1rem;
         font-weight: bold;
+        color: #004b95;
     }
     </style>
     """, unsafe_allow_html=True)
 
 PASSWORT = "1234" 
 DATEI = "zentral_archiv.csv"
+
+# Beispielhafte Liste wichtiger Augsburger Orte (erweiterbar)
+AUGSBURG_STRASSEN = [
+    "Maximilianstraße", "Königsplatz", "Rathausplatz", "Annastraße", "Bürgermeister-Fischer-Straße",
+    "Bahnhofstraße", "Hermanstraße", "Karlstraße", "Grottenau", "Moritzplatz", "Ulrichsplatz",
+    "Jakoberstraße", "Viktoriastraße", "Leopoldstraße", "Prinzregentenstraße", "Frölichstraße",
+    "Theaterstraße", "Ludwigstraße", "Oberer Graben", "Unterer Graben", "Vorderer Lech", "Mittlerer Lech",
+    "Holzbachstraße", "Wertachstraße", "Donauwörther Straße", "Haunstetter Straße", "Gögginger Straße",
+    "Berliner Allee", "Friedberger Straße", "Amagasaki-Allee", "Schleifenstraße"
+]
+AUGSBURG_STRASSEN.sort()
 
 # --- LOGIN-LOGIK ---
 if "autentifiziert" not in st.session_state:
@@ -45,115 +56,118 @@ if not st.session_state["autentifiziert"]:
 
 # --- DATEN-FUNKTIONEN ---
 def lade_daten():
-    # Wir definieren, welche Spalten wir MINDESTENS brauchen
-    spalten_soll = ["Datum", "Zeit", "Zeugen", "Polizei", "RD", "FS", "FS_Details", "Bericht"]
-    
+    spalten_soll = ["Datum", "Anfang", "Ende", "Ort", "Zeugen", "Polizei", "RD", "FS", "FS_Details", "Bericht"]
     if os.path.exists(DATEI):
         try:
             df = pd.read_csv(DATEI)
-            
-            # Fehlerbehebung für alte Spaltennamen (Rettungsdienst -> RD)
-            if "Rettungsdienst" in df.columns and "RD" not in df.columns:
-                df = df.rename(columns={"Rettungsdienst": "RD"})
-            if "Funkstreife" in df.columns and "FS" not in df.columns:
-                df = df.rename(columns={"Funkstreife": "FS"})
-                
-            # Fehlende Spalten ergänzen, damit es keinen Crash gibt
+            # Migration alter Daten
+            if "Zeit" in df.columns and "Anfang" not in df.columns:
+                df = df.rename(columns={"Zeit": "Anfang"})
             for col in spalten_soll:
-                if col not in df.columns:
-                    df[col] = ""
-                    
-            return df.fillna("").astype(str)
-        except:
-            pass
+                if col not in df.columns: df[col] = "-"
+            return df.fillna("-").astype(str)
+        except: pass
     return pd.DataFrame(columns=spalten_soll)
 
 def erstelle_pdf(row):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", "B", 16)
-    pdf.cell(200, 10, txt="EINSATZPROTOKOLL - ORDNUNGSAMT", ln=True, align='C')
+    pdf.cell(200, 10, txt="EINSATZPROTOKOLL", ln=True, align='C')
     pdf.ln(10)
     pdf.set_font("Arial", size=12)
-    
-    content = [
-        f"Datum: {row['Datum']} | Zeit: {row['Zeit']}",
-        f"Zeugen: {row['Zeugen']}",
-        f"Kräfte: Pol: {row['Polizei']} | RD: {row['RD']} | FS: {row['FS']} ({row['FS_Details']})",
-        "-"*30,
-        "Sachverhalt:",
-        str(row['Bericht'])
-    ]
-    
-    for line in content:
-        clean_line = line.replace('ä','ae').replace('ö','oe').replace('ü','ue').replace('ß','ss')
-        pdf.multi_cell(0, 10, txt=clean_line)
-    
+    text = (f"Datum: {row['Datum']}\n"
+            f"Zeitraum: {row['Anfang']} bis {row['Ende']}\n"
+            f"Ort: {row['Ort']}\n"
+            f"Zeugen: {row['Zeugen']}\n"
+            f"Kräfte: Pol: {row['Polizei']} | RD: {row['RD']} | FS: {row['FS']}\n\n"
+            f"Bericht:\n{row['Bericht']}")
+    clean = text.replace('ä','ae').replace('ö','oe').replace('ü','ue').replace('ß','ss')
+    pdf.multi_cell(0, 10, txt=clean)
     return pdf.output(dest='S').encode('latin-1', 'ignore')
 
 # --- SIDEBAR ---
 with st.sidebar:
-    st.title("🚓 Optionen")
-    if st.button("🔴 Logout / Sperren"):
+    st.title("🚓 Steuerung")
+    if st.button("🔴 Logout", use_container_width=True):
         st.session_state["autentifiziert"] = False
         st.rerun()
     st.divider()
-    st.write("Einsatzliste v3.0")
+    st.subheader("🔍 Archiv-Filter")
+    filter_datum = st.date_input("Nach Datum suchen", value=None)
+    filter_ort = st.text_input("Nach Ort suchen")
 
 # --- HAUPTBEREICH ---
 st.title("📝 Einsatzliste Ordnungsamt")
 
-# Eingabe
-with st.expander("➕ Neuen Einsatzbericht schreiben", expanded=True):
+with st.expander("➕ Neuen Bericht erfassen", expanded=True):
     with st.form("input_form", clear_on_submit=True):
-        c1, c2 = st.columns(2)
+        c1, c2, c3 = st.columns([1, 1, 1])
         d = c1.date_input("Datum", datetime.now())
-        z = c2.time_input("Uhrzeit", datetime.now())
-        zeuge = st.text_input("Beteiligte Personen / Zeugen")
+        t_start = c2.time_input("Anfang", datetime.now().time())
+        t_end = c3.time_input("Ende", datetime.now().time())
         
-        st.write("**Hinzugezogene Kräfte**")
+        # NEUER REITER: ORT (mit Vorschlagsliste)
+        ort = st.selectbox("Ort / Straße in Augsburg", options=["Andere / Manuelle Eingabe"] + AUGSBURG_STRASSEN)
+        if ort == "Andere / Manuelle Eingabe":
+            ort_final = st.text_input("Genaue Adresse eingeben")
+        else:
+            ort_final = ort
+        
+        zeuge = st.text_input("Zeugen / Beteiligte")
+        
+        st.write("**Kräfte**")
         k1, k2, k3, k4 = st.columns([1,1,1,2])
         pol = k1.checkbox("Polizei")
         rd = k2.checkbox("RD")
         fs = k3.checkbox("FS")
-        fs_info = k4.text_input("Details FS (Wagen/Name)")
+        fs_info = k4.text_input("Details FS")
         
-        bericht_text = st.text_area("Ausführlicher Bericht")
+        bericht_text = st.text_area("Bericht")
         
-        if st.form_submit_button("✅ Bericht speichern & Archivieren", use_container_width=True):
-            if bericht_text:
-                neue_zeile = pd.DataFrame([[str(d), str(z), str(zeuge), 
-                                            "Ja" if pol else "Nein", 
-                                            "Ja" if rd else "Nein", 
-                                            "Ja" if fs else "Nein", 
-                                            str(fs_info), str(bericht_text)]], 
-                                         columns=["Datum", "Zeit", "Zeugen", "Polizei", "RD", "FS", "FS_Details", "Bericht"])
+        if st.form_submit_button("✅ Speichern", use_container_width=True):
+            if bericht_text and ort_final:
+                neue_zeile = pd.DataFrame([[
+                    str(d), t_start.strftime("%H:%M"), t_end.strftime("%H:%M"), 
+                    str(ort_final), str(zeuge), 
+                    "Ja" if pol else "Nein", "Ja" if rd else "Nein", "Ja" if fs else "Nein", 
+                    str(fs_info), str(bericht_text)
+                ]], columns=["Datum", "Anfang", "Ende", "Ort", "Zeugen", "Polizei", "RD", "FS", "FS_Details", "Bericht"])
+                
                 df = lade_daten()
                 pd.concat([df, neue_zeile], ignore_index=True).to_csv(DATEI, index=False)
                 st.success("Gespeichert!")
                 st.rerun()
+            else:
+                st.error("Bitte Bericht und Ort ausfüllen!")
 
-# --- ARCHIV ---
+# --- ARCHIV MIT FILTER ---
 st.divider()
-st.subheader("📚 Archivierte Berichte")
+st.subheader("📚 Archiv")
 daten = lade_daten()
 
 if not daten.empty:
+    # Filter logik
+    if filter_datum:
+        daten = daten[daten['Datum'] == str(filter_datum)]
+    if filter_ort:
+        daten = daten[daten['Ort'].str.contains(filter_ort, case=False)]
+
     for i, row in daten.iloc[::-1].iterrows():
-        # Karten-Vorschau
         st.markdown(f"""
             <div class="report-card">
-                <strong>📅 {row['Datum']} | ⏰ {row['Zeit']}</strong><br>
-                <small>Beteiligt: {row['Zeugen'][:30]}...</small>
+                <div class="card-header">📅 {row['Datum']} | 📍 {row['Ort']}</div>
+                <div style="font-size: 0.9rem; color: #666;">⏰ {row['Anfang']} - {row['Ende']} &nbsp; | &nbsp; Beteiligt: {row['Zeugen'][:30]}...</div>
             </div>
         """, unsafe_allow_html=True)
         
-        with st.expander("Vollständigen Bericht lesen"):
-            col_a, col_b = st.columns([3, 1])
-            with col_a:
+        with st.expander("Bericht vollständig anzeigen"):
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                st.write(f"**Ort:** {row['Ort']}")
                 st.write(f"**Kräfte:** Pol: {row['Polizei']} | RD: {row['RD']} | FS: {row['FS']} ({row['FS_Details']})")
                 st.info(row['Bericht'])
-            with col_b:
-                st.download_button("📄 PDF Export", erstelle_pdf(row), f"Einsatz_{i}.pdf", "application/pdf", key=f"pdf_{i}")
+            with col2:
+                st.download_button("📄 PDF", erstelle_pdf(row), f"Einsatz_{i}.pdf", "application/pdf", key=f"p_{i}", use_container_width=True)
 else:
-    st.info("Keine Einträge vorhanden.")
+    st.info("Das Archiv ist leer.")
