@@ -9,8 +9,11 @@ import urllib.parse
 st.set_page_config(page_title="Einsatzliste OA Nacht", page_icon="📝", layout="wide")
 PASSWORT = "1234" 
 DATEI = "zentral_archiv.csv"
-# Deine festen Empfänger
-REZEPTIENTEN = "Kevin.woelki@augsburg.de, kevinworlki@outlook.de"
+
+# Deine festen Empfänger (Wichtig: Keine Leerzeichen für den Link-Button)
+REZEPTIENTEN = "Kevin.woelki@augsburg.de,kevinworlki@outlook.de"
+# Wir säubern die Empfängerliste für den Link
+MAIL_TO_LIST = REZEPTIENTEN.replace(" ", "")
 
 # --- LOGIN-LOGIK ---
 if "autentifiziert" not in st.session_state:
@@ -30,7 +33,10 @@ if not st.session_state["autentifiziert"]:
 # --- DATEN-FUNKTIONEN ---
 def lade_daten():
     if os.path.exists(DATEI):
-        return pd.read_csv(DATEI)
+        try:
+            return pd.read_csv(DATEI)
+        except:
+            return pd.DataFrame(columns=["Datum", "Zeit", "Zeugen", "Polizei", "Rettungsdienst", "Funkstreife", "FS_Details", "Bericht"])
     return pd.DataFrame(columns=["Datum", "Zeit", "Zeugen", "Polizei", "Rettungsdienst", "Funkstreife", "FS_Details", "Bericht"])
 
 # --- SIDEBAR (ABMELDEN) ---
@@ -93,8 +99,8 @@ if submit and text:
     betreff = urllib.parse.quote(f"Einsatzbericht {d} {z}")
     body = urllib.parse.quote(mail_inhalt)
     
-    # Mailto-Link mit Empfängern
-    mail_link = f"mailto:{REZEPTIENTEN}?subject={betreff}&body={body}"
+    # Mailto-Link ohne Leerzeichen
+    mail_link = f"mailto:{MAIL_TO_LIST}?subject={betreff}&body={body}"
     v_col1.link_button("📧 E-Mail an Zentrale senden", mail_link, use_container_width=True)
     
     # PDF Erstellung
@@ -117,6 +123,11 @@ daten = lade_daten()
 if not daten.empty:
     for i, row in daten.iloc[::-1].iterrows():
         with st.expander(f"📄 {row['Datum']} - {row['Zeit']} - {row['Zeugen'][:15]}..."):
-            st.write(f"**Bericht:** {row['Bericht']}")
+            st.write(f"**Details:** Polizei: {row['Polizei']} | RD: {row['Rettungsdienst']} | FS: {row['Funkstreife']}")
+            st.info(f"**Bericht:**\n\n{row['Bericht']}")
+            
+            # Link-Fix auch hier im Archiv
             m_body = urllib.parse.quote(f"Bericht vom {row['Datum']}:\n\n{row['Bericht']}")
-            st.link_button("📧 Erneut senden", f"mailto:{REZEPTIENTEN}?subject=Kopie Einsatzbericht&body={m_body}", key=f"old_mail_{i}")
+            st.link_button("📧 Erneut senden", f"mailto:{MAIL_TO_LIST}?subject=Kopie Einsatzbericht&body={m_body}", key=f"old_mail_{i}")
+else:
+    st.info("Noch keine Berichte im Archiv.")
