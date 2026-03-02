@@ -3,10 +3,12 @@ import pandas as pd
 import os
 from datetime import datetime
 from fpdf import FPDF
+import PIL.Image
 
 # --- DESIGN-KONFIGURATION ---
 st.set_page_config(page_title="Einsatzliste OA Nacht", page_icon="🚓", layout="wide")
 
+# Eigenes CSS für modernes Interface und offizielle Farben
 st.markdown("""
     <style>
     .report-card {
@@ -22,20 +24,31 @@ st.markdown("""
         font-weight: bold;
         color: #004b95;
     }
+    .stButton>button {
+        border-radius: 8px;
+        font-weight: bold;
+    }
+    /* Hintergrundbild für die gesamte App (optional, falls gewünscht) */
+    /*
+    .stApp {
+        background-image: url("https://images.unsplash.com/photo-1599420186946-7b6fb4e297f0?ixlib=rb-1.2.1&auto=format&fit=crop&w=1950&q=80");
+        background-size: cover;
+    }
+    */
     </style>
     """, unsafe_allow_html=True)
 
 PASSWORT = "1234" 
 DATEI = "zentral_archiv.csv"
+LOGO_DATEI = "logo.png" # Name deiner Bilddatei auf GitHub
 
-# Beispielhafte Liste wichtiger Augsburger Orte (erweiterbar)
+# Augsburger Orte (erweiterbar)
 AUGSBURG_STRASSEN = [
-    "Maximilianstraße", "Königsplatz", "Rathausplatz", "Annastraße", "Bürgermeister-Fischer-Straße",
-    "Bahnhofstraße", "Hermanstraße", "Karlstraße", "Grottenau", "Moritzplatz", "Ulrichsplatz",
-    "Jakoberstraße", "Viktoriastraße", "Leopoldstraße", "Prinzregentenstraße", "Frölichstraße",
-    "Theaterstraße", "Ludwigstraße", "Oberer Graben", "Unterer Graben", "Vorderer Lech", "Mittlerer Lech",
-    "Holzbachstraße", "Wertachstraße", "Donauwörther Straße", "Haunstetter Straße", "Gögginger Straße",
-    "Berliner Allee", "Friedberger Straße", "Amagasaki-Allee", "Schleifenstraße"
+    "Maximilianstraße", "Königsplatz", "Rathausplatz", "Annastraße", "Bahnhofstraße",
+    "Hermanstraße", "Karlstraße", "Grottenau", "Moritzplatz", "Ulrichsplatz",
+    "Jakoberstraße", "Viktoriastraße", "Prinzregentenstraße", "Ludwigstraße",
+    "Oberer Graben", "Unterer Graben", "Vorderer Lech", "Donauwörther Straße",
+    "Haunstetter Straße", "Gögginger Straße", "Berliner Allee", "Friedberger Straße"
 ]
 AUGSBURG_STRASSEN.sort()
 
@@ -45,6 +58,10 @@ if "autentifiziert" not in st.session_state:
 
 if not st.session_state["autentifiziert"]:
     st.title("🔐 Sicherheits-Login")
+    # Logo auch auf dem Login-Bildschirm anzeigen, falls vorhanden
+    if os.path.exists(LOGO_DATEI):
+        st.image(LOGO_DATEI, width=200)
+        
     eingabe = st.text_input("Dienst-Passwort", type="password")
     if st.button("Anmelden", use_container_width=True):
         if eingabe == PASSWORT:
@@ -60,9 +77,6 @@ def lade_daten():
     if os.path.exists(DATEI):
         try:
             df = pd.read_csv(DATEI)
-            # Migration alter Daten
-            if "Zeit" in df.columns and "Anfang" not in df.columns:
-                df = df.rename(columns={"Zeit": "Anfang"})
             for col in spalten_soll:
                 if col not in df.columns: df[col] = "-"
             return df.fillna("-").astype(str)
@@ -72,6 +86,12 @@ def lade_daten():
 def erstelle_pdf(row):
     pdf = FPDF()
     pdf.add_page()
+    
+    # Logo im PDF einfügen, falls vorhanden
+    if os.path.exists(LOGO_DATEI):
+        pdf.image(LOGO_DATEI, 10, 8, 33)
+        pdf.ln(20) # Platz nach dem Logo lassen
+    
     pdf.set_font("Arial", "B", 16)
     pdf.cell(200, 10, txt="EINSATZPROTOKOLL", ln=True, align='C')
     pdf.ln(10)
@@ -86,8 +106,13 @@ def erstelle_pdf(row):
     pdf.multi_cell(0, 10, txt=clean)
     return pdf.output(dest='S').encode('latin-1', 'ignore')
 
-# --- SIDEBAR ---
+# --- SIDEBAR (mit Logo) ---
 with st.sidebar:
+    # Das Bild in der Sidebar anzeigen, falls vorhanden
+    if os.path.exists(LOGO_DATEI):
+        st.image(LOGO_DATEI, use_container_width=True)
+        st.divider()
+    
     st.title("🚓 Steuerung")
     if st.button("🔴 Logout", use_container_width=True):
         st.session_state["autentifiziert"] = False
@@ -107,10 +132,9 @@ with st.expander("➕ Neuen Bericht erfassen", expanded=True):
         t_start = c2.time_input("Anfang", datetime.now().time())
         t_end = c3.time_input("Ende", datetime.now().time())
         
-        # NEUER REITER: ORT (mit Vorschlagsliste)
-        ort = st.selectbox("Ort / Straße in Augsburg", options=["Andere / Manuelle Eingabe"] + AUGSBURG_STRASSEN)
-        if ort == "Andere / Manuelle Eingabe":
-            ort_final = st.text_input("Genaue Adresse eingeben")
+        ort = st.selectbox("Ort / Straße", options=["Manuelle Eingabe"] + AUGSBURG_STRASSEN)
+        if ort == "Manuelle Eingabe":
+            ort_final = st.text_input("Genaue Adresse")
         else:
             ort_final = ort
         
@@ -139,15 +163,14 @@ with st.expander("➕ Neuen Bericht erfassen", expanded=True):
                 st.success("Gespeichert!")
                 st.rerun()
             else:
-                st.error("Bitte Bericht und Ort ausfüllen!")
+                st.error("Bericht und Ort ausfüllen!")
 
-# --- ARCHIV MIT FILTER ---
+# --- ARCHIV ---
 st.divider()
 st.subheader("📚 Archiv")
 daten = lade_daten()
 
 if not daten.empty:
-    # Filter logik
     if filter_datum:
         daten = daten[daten['Datum'] == str(filter_datum)]
     if filter_ort:
@@ -157,15 +180,14 @@ if not daten.empty:
         st.markdown(f"""
             <div class="report-card">
                 <div class="card-header">📅 {row['Datum']} | 📍 {row['Ort']}</div>
-                <div style="font-size: 0.9rem; color: #666;">⏰ {row['Anfang']} - {row['Ende']} &nbsp; | &nbsp; Beteiligt: {row['Zeugen'][:30]}...</div>
+                <div style="font-size: 0.9rem; color: #666;">⏰ {row['Anfang']} - {row['Ende']} &nbsp; | &nbsp; {row['Zeugen'][:30]}...</div>
             </div>
         """, unsafe_allow_html=True)
         
-        with st.expander("Bericht vollständig anzeigen"):
+        with st.expander("Bericht anzeigen"):
             col1, col2 = st.columns([3, 1])
             with col1:
-                st.write(f"**Ort:** {row['Ort']}")
-                st.write(f"**Kräfte:** Pol: {row['Polizei']} | RD: {row['RD']} | FS: {row['FS']} ({row['FS_Details']})")
+                st.write(f"**Ort:** {row['Ort']} | Kräfte: Pol:{row['Polizei']}, RD:{row['RD']}, FS:{row['FS']}")
                 st.info(row['Bericht'])
             with col2:
                 st.download_button("📄 PDF", erstelle_pdf(row), f"Einsatz_{i}.pdf", "application/pdf", key=f"p_{i}", use_container_width=True)
