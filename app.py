@@ -9,6 +9,7 @@ import urllib.parse
 st.set_page_config(page_title="Einsatzliste OA Nacht", page_icon="📝", layout="wide")
 PASSWORT = "1234" 
 DATEI = "zentral_archiv.csv"
+EMPFAENGER = "Kevin.woelki@augsburg.de,kevinworlki@outlook.de"
 
 # --- LOGIN-LOGIK ---
 if "autentifiziert" not in st.session_state:
@@ -29,9 +30,11 @@ if not st.session_state["autentifiziert"]:
 def lade_daten():
     if os.path.exists(DATEI):
         try:
-            return pd.read_csv(DATEI)
+            df = pd.read_csv(DATEI)
+            # WICHTIG: Leere Felder mit leerem Text füllen, um Abstürze zu vermeiden
+            return df.fillna("")
         except:
-            return pd.DataFrame(columns=["Datum", "Zeit", "Zeugen", "Polizei", "Rettungsdienst", "Funkstreife", "FS_Details", "Bericht"])
+            pass
     return pd.DataFrame(columns=["Datum", "Zeit", "Zeugen", "Polizei", "Rettungsdienst", "Funkstreife", "FS_Details", "Bericht"])
 
 # --- SIDEBAR (ABMELDEN) ---
@@ -62,7 +65,7 @@ with st.expander("➕ Neuen Bericht erstellen", expanded=True):
 
 if submit and text:
     neue_zeile = pd.DataFrame([[
-        str(d), str(z), zeuge, 
+        str(d), str(z), zeuge if zeuge else "Keine", 
         "Ja" if pol else "Nein", 
         "Ja" if rd else "Nein", 
         "Ja" if fs else "Nein", 
@@ -74,13 +77,10 @@ if submit and text:
     df.to_csv(DATEI, index=False)
     st.success("✅ Bericht gespeichert!")
     
-    # E-Mail Link sicher bauen
-    empfaenger = "Kevin.woelki@augsburg.de,kevinworlki@outlook.de"
+    # E-Mail Link bauen
     betreff = f"Einsatzbericht {d} {z}"
     mail_body = f"Datum: {d}\nZeit: {z}\nZeugen: {zeuge}\nKräfte: Pol:{'Ja' if pol else 'Nein'}, RD:{'Ja' if rd else 'Nein'}, FS:{'Ja' if fs else 'Nein'} ({fs_info})\n\nBericht:\n{text}"
-    
-    # WICHTIG: Komplettes Encoding des gesamten Links
-    mailto_link = f"mailto:{empfaenger}?subject={urllib.parse.quote(betreff)}&body={urllib.parse.quote(mail_body)}"
+    mailto_link = f"mailto:{EMPFAENGER}?subject={urllib.parse.quote(betreff)}&body={urllib.parse.quote(mail_body)}"
     
     st.link_button("📧 E-Mail an Zentrale senden", mailto_link, use_container_width=True)
 
@@ -88,17 +88,20 @@ if submit and text:
 st.divider()
 st.subheader("📚 Zentrales Archiv")
 daten = lade_daten()
+
 if not daten.empty:
     for i, row in daten.iloc[::-1].iterrows():
-        with st.expander(f"📄 {row['Datum']} - {row['Zeit']} - {row['Zeugen'][:15]}..."):
-            st.write(f"**Bericht:** {row['Bericht']}")
+        # FEHLER-FIX: Falls Zeugen leer ist, wird ein Standardtext genutzt
+        zeugen_vorschau = str(row['Zeugen'])[:15] if row['Zeugen'] else "Keine Angabe"
+        
+        with st.expander(f"📄 {row['Datum']} - {row['Zeit']} - {zeugen_vorschau}..."):
+            st.write(f"**Zeugen:** {row['Zeugen']}")
+            st.write(f"**Kräfte:** Polizei: {row['Polizei']} | RD: {row['Rettungsdienst']} | FS: {row['Funkstreife']} ({row['FS_Details']})")
+            st.info(f"**Bericht:**\n\n{row['Bericht']}")
             
-            # Link im Archiv ebenfalls absichern
-            m_empf = "Kevin.woelki@augsburg.de,kevinworlki@outlook.de"
+            # Mail Link im Archiv
             m_subj = urllib.parse.quote(f"Kopie Bericht {row['Datum']}")
             m_body = urllib.parse.quote(f"Bericht vom {row['Datum']}:\n\n{row['Bericht']}")
-            
-            # Hier bauen wir den Link so zusammen, dass keine Leerzeichen stören
-            final_link = f"mailto:{m_empf}?subject={m_subj}&body={m_body}"
-            
-            st.link_button("📧 Erneut senden", final_link, key=f"arch_mail_{i}")
+            st.link_button("📧 Erneut senden", f"mailto:{EMPFAENGER}?subject={m_subj}&body={m_body}", key=f"arch_mail_{i}")
+else:
+    st.info("Noch keine Berichte im Archiv.")
