@@ -6,7 +6,7 @@ from datetime import datetime
 # --- DIE VERBINDUNG ---
 # Hier fügst du deinen Link zwischen die Anführungszeichen ein:
 # Beispiel: SHEET_URL = "https://docs.google.com/spreadsheets/d/12345..."
-SHEET_URL = https://docs.google.com/spreadsheets/d/1qPHocyweIjksO6zhGVAqlxo4IqIeNM_8FmmStAt9eKc/edit?usp=drivesdk
+SHEET_URL = "https://docs.google.com/spreadsheets/d/1qPHocyweIjksO6zhGVAqlxo4IqIeNM_8FmmStAt9eKc/edit?usp=drivesdk"
 
 st.set_page_config(page_title="Einsatzbericht Cloud", page_icon="📋")
 st.title("📋 Einsatzbericht")
