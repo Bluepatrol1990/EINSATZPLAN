@@ -8,6 +8,7 @@ from PIL import Image
 # --- KONFIGURATION & STYLING ---
 st.set_page_config(page_title="OA Einsatz-Dashboard", page_icon="🚓", layout="wide")
 
+# CSS für modernes Interface (Weißer Hintergrund für PDF-Optik)
 st.markdown("""
     <style>
     .stApp { background-color: #ffffff; }
@@ -37,6 +38,9 @@ PASSWORT = "1234"
 DATEI = "zentral_archiv.csv"
 LOGO_DATEI = "logo.jpg" 
 
+# Empfänger-Info (Intern hinterlegt)
+RECIPIENTS = ["Kevin.woelki@augsburg.de", "kevinworlki@outlook.de"]
+
 # --- DATEN-FUNKTIONEN ---
 def lade_daten():
     spalten = ["Datum", "Anfang", "Ende", "Ort", "Zeugen", "Polizei", "RD", "FS", "FS_Details", "Bericht"]
@@ -50,28 +54,26 @@ def lade_daten():
     return pd.DataFrame(columns=spalten)
 
 def erstelle_pdf(row):
-    # PDF im Hochformat, weißer Hintergrund ist Standard
     pdf = FPDF()
     pdf.add_page()
     
-    # Logo einfügen (Position oben links, Breite 35mm)
+    # Logo oben links (auf weißem Hintergrund)
     if os.path.exists(LOGO_DATEI):
-        # Wir platzieren das Logo ohne Rahmen auf das weiße Blatt
         pdf.image(LOGO_DATEI, x=10, y=10, w=35)
-        pdf.ln(25) # Abstand nach unten, damit Text nicht im Logo klebt
+        pdf.ln(25)
     
+    # Header
     pdf.set_font("Arial", "B", 16)
-    pdf.set_text_color(0, 75, 149) # Dunkelblau für die Überschrift
+    pdf.set_text_color(0, 75, 149) 
     pdf.cell(0, 10, txt="EINSATZPROTOKOLL - STADT AUGSBURG", ln=True, align='R')
-    
     pdf.set_draw_color(0, 75, 149)
-    pdf.line(10, pdf.get_y(), 200, pdf.get_y()) # Eine Trennlinie
+    pdf.line(10, pdf.get_y(), 200, pdf.get_y())
     pdf.ln(10)
     
-    pdf.set_text_color(0, 0, 0) # Schwarz für den restlichen Text
+    # Inhalt
+    pdf.set_text_color(0, 0, 0)
     pdf.set_font("Arial", "B", 11)
     
-    # Kompakte Datenübersicht
     details = [
         ("Datum", row['Datum']), ("Zeitspanne", f"{row['Anfang']} - {row['Ende']} Uhr"),
         ("Einsatzort", row['Ort']), ("Beteiligte", row['Zeugen']),
@@ -89,6 +91,16 @@ def erstelle_pdf(row):
     pdf.cell(0, 8, "Sachverhalt / Bericht:", ln=1)
     pdf.set_font("Arial", "", 11)
     pdf.multi_cell(0, 7, txt=str(row['Bericht']).replace('ä','ae').replace('ö','oe').replace('ü','ue').replace('ß','ss'))
+    
+    # UNTERSCHRIFTENZEILE
+    pdf.ln(30)
+    pdf.set_draw_color(0, 0, 0)
+    pdf.line(10, pdf.get_y(), 80, pdf.get_y())
+    pdf.line(120, pdf.get_y(), 190, pdf.get_y())
+    pdf.set_font("Arial", "I", 8)
+    pdf.cell(70, 5, txt="Datum, Unterschrift Ersteller", ln=0)
+    pdf.cell(40, 5, txt="", ln=0)
+    pdf.cell(70, 5, txt="Unterschrift Dienstleitung / Kontrolle", ln=1)
     
     return pdf.output(dest='S').encode('latin-1', 'ignore')
 
@@ -109,4 +121,94 @@ if not st.session_state["autentifiziert"]:
     st.stop()
 
 # --- SIDEBAR ---
-with st.
+with st.sidebar:
+    if os.path.exists(LOGO_DATEI): st.image(LOGO_DATEI, use_container_width=True)
+    if st.button("🔴 Logout", use_container_width=True):
+        st.session_state["autentifiziert"] = False
+        st.rerun()
+    st.divider()
+    f_datum = st.date_input("Datum filtern", value=None)
+    f_ort = st.text_input("Ort filtern")
+
+# --- DASHBOARD ---
+st.title("📋 Einsatz-Dashboard")
+daten = lade_daten()
+
+# Metriken
+c1, c2, c3 = st.columns(3)
+c1.metric("Einträge", len(daten))
+c2.metric("Heute", len(daten[daten['Datum'] == datetime.now().strftime("%Y-%m-%d")]))
+c3.metric("Status", "Bereit")
+
+# NEUER EINSATZ
+with st.expander("➕ NEUEN EINSATZ ERFASSEN", expanded=False):
+    with st.form("new_entry_form", clear_on_submit=True):
+        col1, col2, col3 = st.columns(3)
+        d = col1.date_input("Datum", datetime.now())
+        ts = col2.time_input("Start", datetime.now().time())
+        te = col3.time_input("Ende", datetime.now().time())
+        
+        ort = st.text_input("Ort")
+        zeuge = st.text_input("Beteiligte / Zeugen")
+        
+        k1, k2, k3, k4 = st.columns([1,1,1,2])
+        pol = k1.checkbox("Polizei")
+        rd = k2.checkbox("RD")
+        fs = k3.checkbox("FS")
+        fsi = k4.text_input("Details FS")
+        
+        txt = st.text_area("Bericht", height=150)
+        submit = st.form_submit_button("🚀 SPEICHERN", use_container_width=True)
+
+    if submit:
+        if txt and ort:
+            new_row = pd.DataFrame([[str(d), ts.strftime("%H:%M"), te.strftime("%H:%M"), str(ort), str(zeuge), 
+                                     "Ja" if pol else "Nein", "Ja" if rd else "Nein", "Ja" if fs else "Nein", 
+                                     str(fsi), str(txt)]], columns=daten.columns)
+            pd.concat([daten, new_row], ignore_index=True).to_csv(DATEI, index=False)
+            st.success(f"Gespeichert! (Info an {', '.join(RECIPIENTS)})")
+            st.rerun()
+
+# --- ARCHIV ---
+st.subheader("📚 Archiv")
+if not daten.empty:
+    filtered = daten.copy()
+    if f_datum: filtered = filtered[filtered['Datum'] == str(f_datum)]
+    if f_ort: filtered = filtered[filtered['Ort'].str.contains(f_ort, case=False)]
+
+    for i, row in filtered.iloc[::-1].iterrows():
+        badges = ""
+        if row['Polizei'] == "Ja": badges += '<span class="badge badge-pol">POL</span>'
+        if row['RD'] == "Ja": badges += '<span class="badge badge-rd">RD</span>'
+        if row['FS'] == "Ja": badges += '<span class="badge badge-fs">FS</span>'
+
+        st.markdown(f"""
+            <div class="einsatz-card">
+                <div style="font-weight:bold; color:#004b95;">📍 {row['Ort']}</div>
+                <div style="font-size:0.8rem; color:#666;">📅 {row['Datum']} | ⏰ {row['Anfang']}-{row['Ende']}</div>
+                <div style="margin-top:5px;">{badges}</div>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        with st.expander("Details / Bearbeiten"):
+            t1, t2, t3 = st.tabs(["📄 Lesen", "✏️ Editieren", "🗑️ Löschen"])
+            with t1:
+                c_a, c_b = st.columns([4,1])
+                c_a.info(row['Bericht'])
+                c_b.download_button("📄 PDF", erstelle_pdf(row), f"Einsatz_{i}.pdf", key=f"pdf_{i}", use_container_width=True)
+            with t2:
+                with st.form(f"edit_{i}"):
+                    e_ort = st.text_input("Ort", value=row['Ort'])
+                    e_txt = st.text_area("Bericht", value=row['Bericht'])
+                    if st.form_submit_button("💾 Update"):
+                        daten.at[i, 'Ort'] = e_ort
+                        daten.at[i, 'Bericht'] = e_txt
+                        daten.to_csv(DATEI, index=False)
+                        st.rerun()
+            with t3:
+                if st.button("❌ Unwiderruflich löschen", key=f"del_{i}"):
+                    daten = daten.drop(i)
+                    daten.to_csv(DATEI, index=False)
+                    st.rerun()
+else:
+    st.info("Keine Daten.")
