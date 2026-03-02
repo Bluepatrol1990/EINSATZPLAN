@@ -1,31 +1,53 @@
 import streamlit as st
-from streamlit_gsheets import GSheetsConnection
 import pandas as pd
+import os
+from datetime import datetime
 
-st.title("📋 Einsatzbericht")
+st.set_page_config(page_title="Einsatzbericht Lokal", page_icon="📋")
+st.title("📋 Einsatzbericht (Gesichert)")
 
-# Verbindung herstellen
-conn = st.connection("gsheets", type=GSheetsConnection)
+# Name der Speicherdatei
+DATEI = "berichte_archiv.csv"
+
+# Funktion zum Laden der Daten
+def lade_daten():
+    if os.path.exists(DATEI):
+        return pd.read_csv(DATEI)
+    else:
+        return pd.DataFrame(columns=["Datum", "Zeit", "Zeugen", "Bericht"])
 
 # Formular
-with st.form("input_form"):
-    datum = st.date_input("Datum")
-    bericht = st.text_area("Bericht")
+with st.form("input_form", clear_on_submit=True):
+    d = st.date_input("Datum", datetime.now())
+    z = st.time_input("Zeit", datetime.now())
+    zeuge = st.text_input("Zeugen")
+    text = st.text_area("Bericht / Details")
     submit = st.form_submit_button("Speichern")
 
 if submit:
-    if bericht:
-        # Bestehende Daten lesen
-        df = conn.read()
-        # Neue Zeile
-        new_row = pd.DataFrame([{"Datum": str(datum), "Bericht": bericht}])
-        # Verbinden
-        updated_df = pd.concat([df, new_row], ignore_index=True)
-        # Hochladen
-        conn.update(data=updated_df)
-        st.success("Gespeichert!")
+    if text:
+        # Neue Zeile erstellen
+        neue_zeile = pd.DataFrame([[str(d), str(z), zeuge, text]], 
+                                 columns=["Datum", "Zeit", "Zeugen", "Bericht"])
+        
+        # Daten laden und neue Zeile anhängen
+        df = lade_daten()
+        df = pd.concat([df, neue_zeile], ignore_index=True)
+        
+        # Speichern als CSV
+        df.to_csv(DATEI, index=False)
+        
+        st.success("✅ Bericht erfolgreich gespeichert!")
+        st.balloons()
     else:
-        st.error("Bitte Text eingeben")
+        st.error("Bitte gib einen Berichtstext ein.")
 
 # Archiv anzeigen
-st.dataframe(conn.read())
+st.divider()
+st.subheader("📚 Archiv")
+daten = lade_daten()
+if not daten.empty:
+    # Zeige die neuesten Einträge oben
+    st.dataframe(daten.iloc[::-1], use_container_width=True)
+else:
+    st.info("Noch keine Berichte vorhanden.")
