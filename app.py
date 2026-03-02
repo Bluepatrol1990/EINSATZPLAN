@@ -3,35 +3,36 @@ from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 from datetime import datetime
 
-# --- DIE VERBINDUNG ---
-# Hier fügst du deinen Link zwischen die Anführungszeichen ein:
-# Beispiel: SHEET_URL = "https://docs.google.com/spreadsheets/d/12345..."
-SHEET_URL = "https://docs.google.com/spreadsheets/d/1qPHocyweIjksO6zhGVAqlxo4IqIeNM_8FmmStAt9eKc/edit?usp=drivesdk"
+# --- KONFIGURATION ---
+SHEET_URL = "https://docs.google.com/spreadsheets/d/1qPHocyweIjksO6zhGVAqlxo4IqIeNM_8FmmStAt9eKc/edit?usp=drivesdk" 
 
-st.set_page_config(page_title="Einsatzbericht Cloud", page_icon="📋")
+st.set_page_config(page_title="Einsatzbericht Cloud", layout="centered")
 st.title("📋 Einsatzbericht")
 
-# Verbindung zur Google Tabelle herstellen
+# Verbindung herstellen
+conn = st.connection("gsheets", type=GSheetsConnection)
+
+# Daten laden (mit Cache-Löschung, damit es immer frisch ist)
+def load_data():
+    return conn.read(spreadsheet=SHEET_URL, ttl="0s")
+
 try:
-    conn = st.connection("gsheets", type=GSheetsConnection)
-    # Wir laden die vorhandenen Daten
-    existierende_daten = conn.read(spreadsheet=SHEET_URL, usecols=[0,1,2,3])
+    existierende_daten = load_data()
 except:
     existierende_daten = pd.DataFrame(columns=["Datum", "Zeit", "Zeugen", "Bericht"])
 
-# --- EINGABE-FORMULAR ---
-with st.form("bericht_form"):
+# --- FORMULAR ---
+with st.form("bericht_form", clear_on_submit=True):
     st.subheader("Neuer Eintrag")
     d = st.date_input("Datum", datetime.now())
     z = st.time_input("Anfangszeit", datetime.now())
     zeuge = st.text_input("Zeugen")
-    text = st.text_area("Bericht / Details")
+    text = st.text_area("Bericht")
     
     submit = st.form_submit_button("Speichern")
 
 if submit:
     if text:
-        # Neuen Datensatz erstellen
         neue_zeile = pd.DataFrame([{
             "Datum": str(d),
             "Zeit": str(z),
@@ -39,23 +40,23 @@ if submit:
             "Bericht": text
         }])
         
-        # Daten zusammenfügen
+        # Sicherstellen, dass die Spalten passen
         aktualisierte_daten = pd.concat([existierende_daten, neue_zeile], ignore_index=True)
         
-        # In Google Sheets zurückschreiben
-        conn.update(spreadsheet=SHEET_URL, data=aktualisierte_daten)
-        st.success("Erfolgreich in Google Tabelle gespeichert!")
-        st.ballons()
+        try:
+            # Speichern erzwingen
+            conn.update(spreadsheet=SHEET_URL, data=aktualisierte_daten)
+            st.success("✅ Erledigt! Bericht wurde in Google Sheets gespeichert.")
+            st.balloons()
+            # Seite kurz warten und dann neu laden
+            st.info("Aktualisiere Archiv...")
+        except Exception as e:
+            st.error(f"Fehler: Bitte prüfe, ob die Google Tabelle auf 'Mitarbeiter' steht.")
     else:
-        st.error("Bitte gib einen Berichtstext ein.")
+        st.error("Bitte einen Text eingeben!")
 
-# --- ARCHIV & FILTER ---
+# --- ARCHIV ---
 st.divider()
-st.subheader("Gespeicherte Berichte")
-suche = st.text_input("Suche im Archiv (Zeugen/Bericht)")
-
+st.subheader("Archiv")
 if not existierende_daten.empty:
-    filter_df = existierende_daten.copy()
-    if suche:
-        filter_df = filter_df[filter_df.astype(str).apply(lambda x: suche.lower() in x.str.lower().values, axis=1)]
-    st.dataframe(filter_df, use_container_width=True)
+    st.dataframe(existierende_daten.sort_index(ascending=False), use_container_width=True)
