@@ -5,21 +5,40 @@ from datetime import datetime
 from fpdf import FPDF
 from PIL import Image
 
-# --- KONFIGURATION & STYLING ---
+# --- KONFIGURATION & STYLING (DARK MODE) ---
 st.set_page_config(page_title="OA Einsatz-Dashboard", page_icon="🚓", layout="wide")
 
-# CSS für modernes Interface (Weißer Hintergrund für PDF-Optik)
 st.markdown("""
     <style>
-    .stApp { background-color: #ffffff; }
+    /* Hintergrund der gesamten App auf Schwarz/Dunkelgrau */
+    .stApp { 
+        background-color: #0e1117; 
+    }
+    
+    /* Alle Texte standardmäßig auf Weiß */
+    h1, h2, h3, p, span, label, .stMarkdown {
+        color: #ffffff !important;
+    }
+
+    /* Karten-Design im Dark Mode */
     .einsatz-card {
-        background-color: #f8f9fa;
+        background-color: #1a1c24;
         border-radius: 12px;
         padding: 18px;
         margin-bottom: 12px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        box-shadow: 0 4px 10px rgba(0,0,0,0.3);
         border-left: 6px solid #004b95;
+        color: white;
     }
+    
+    /* Eingabefelder anpassen */
+    .stTextInput>div>div>input, .stTextArea>div>div>textarea, .stSelectbox>div>div>div {
+        background-color: #262730 !important;
+        color: white !important;
+        border: 1px solid #444 !important;
+    }
+
+    /* Badges für Einsatzkräfte */
     .badge {
         padding: 2px 8px;
         border-radius: 8px;
@@ -28,9 +47,14 @@ st.markdown("""
         margin-right: 4px;
         border: 1px solid;
     }
-    .badge-pol { background-color: #e3f2fd; color: #0d47a1; border-color: #bbdefb; }
-    .badge-rd { background-color: #ffebee; color: #b71c1c; border-color: #ffcdd2; }
-    .badge-fs { background-color: #fffde7; color: #fbc02d; border-color: #fff9c4; }
+    .badge-pol { background-color: #0d47a1; color: white; border-color: #1565c0; }
+    .badge-rd { background-color: #b71c1c; color: white; border-color: #c62828; }
+    .badge-fs { background-color: #fbc02d; color: black; border-color: #fdd835; }
+    
+    /* Sidebar Styling */
+    section[data-testid="stSidebar"] {
+        background-color: #111318 !important;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -38,7 +62,7 @@ PASSWORT = "1234"
 DATEI = "zentral_archiv.csv"
 LOGO_DATEI = "logo.jpg" 
 
-# Empfänger-Info (Intern hinterlegt)
+# Empfänger-Info
 RECIPIENTS = ["Kevin.woelki@augsburg.de", "kevinworlki@outlook.de"]
 
 # --- DATEN-FUNKTIONEN ---
@@ -56,52 +80,31 @@ def lade_daten():
 def erstelle_pdf(row):
     pdf = FPDF()
     pdf.add_page()
-    
-    # Logo oben links (auf weißem Hintergrund)
     if os.path.exists(LOGO_DATEI):
         pdf.image(LOGO_DATEI, x=10, y=10, w=35)
         pdf.ln(25)
-    
-    # Header
     pdf.set_font("Arial", "B", 16)
     pdf.set_text_color(0, 75, 149) 
     pdf.cell(0, 10, txt="EINSATZPROTOKOLL - STADT AUGSBURG", ln=True, align='R')
     pdf.set_draw_color(0, 75, 149)
     pdf.line(10, pdf.get_y(), 200, pdf.get_y())
     pdf.ln(10)
-    
-    # Inhalt
     pdf.set_text_color(0, 0, 0)
     pdf.set_font("Arial", "B", 11)
-    
     details = [
         ("Datum", row['Datum']), ("Zeitspanne", f"{row['Anfang']} - {row['Ende']} Uhr"),
         ("Einsatzort", row['Ort']), ("Beteiligte", row['Zeugen']),
         ("Kräfte", f"Pol: {row['Polizei']} | RD: {row['RD']} | FS: {row['FS']} ({row['FS_Details']})")
     ]
-    
     for label, value in details:
         pdf.set_font("Arial", "B", 11)
         pdf.cell(40, 8, txt=f"{label}:", ln=0)
         pdf.set_font("Arial", "", 11)
         pdf.cell(0, 8, txt=str(value).replace('ä','ae').replace('ö','oe').replace('ü','ue').replace('ß','ss'), ln=1)
-    
-    pdf.ln(10)
-    pdf.set_font("Arial", "B", 11)
-    pdf.cell(0, 8, "Sachverhalt / Bericht:", ln=1)
-    pdf.set_font("Arial", "", 11)
-    pdf.multi_cell(0, 7, txt=str(row['Bericht']).replace('ä','ae').replace('ö','oe').replace('ü','ue').replace('ß','ss'))
-    
-    # UNTERSCHRIFTENZEILE
-    pdf.ln(30)
-    pdf.set_draw_color(0, 0, 0)
-    pdf.line(10, pdf.get_y(), 80, pdf.get_y())
-    pdf.line(120, pdf.get_y(), 190, pdf.get_y())
-    pdf.set_font("Arial", "I", 8)
-    pdf.cell(70, 5, txt="Datum, Unterschrift Ersteller", ln=0)
-    pdf.cell(40, 5, txt="", ln=0)
-    pdf.cell(70, 5, txt="Unterschrift Dienstleitung / Kontrolle", ln=1)
-    
+    pdf.ln(10); pdf.set_font("Arial", "B", 11); pdf.cell(0, 8, "Bericht:", ln=1)
+    pdf.set_font("Arial", "", 11); pdf.multi_cell(0, 7, txt=str(row['Bericht']).replace('ä','ae').replace('ö','oe').replace('ü','ue').replace('ß','ss'))
+    pdf.ln(20); pdf.line(10, pdf.get_y(), 80, pdf.get_y()); pdf.line(120, pdf.get_y(), 190, pdf.get_y())
+    pdf.set_font("Arial", "I", 8); pdf.cell(70, 5, txt="Unterschrift Ersteller", ln=0); pdf.cell(40, 5); pdf.cell(70, 5, txt="Unterschrift Kontrolle", ln=1)
     return pdf.output(dest='S').encode('latin-1', 'ignore')
 
 # --- LOGIN ---
@@ -134,9 +137,9 @@ with st.sidebar:
 st.title("📋 Einsatz-Dashboard")
 daten = lade_daten()
 
-# Metriken
+# Metriken (werden in Streamlit Dark Mode automatisch angepasst)
 c1, c2, c3 = st.columns(3)
-c1.metric("Einträge", len(daten))
+c1.metric("Gesamt", len(daten))
 c2.metric("Heute", len(daten[daten['Datum'] == datetime.now().strftime("%Y-%m-%d")]))
 c3.metric("Status", "Bereit")
 
@@ -147,16 +150,13 @@ with st.expander("➕ NEUEN EINSATZ ERFASSEN", expanded=False):
         d = col1.date_input("Datum", datetime.now())
         ts = col2.time_input("Start", datetime.now().time())
         te = col3.time_input("Ende", datetime.now().time())
-        
         ort = st.text_input("Ort")
         zeuge = st.text_input("Beteiligte / Zeugen")
-        
         k1, k2, k3, k4 = st.columns([1,1,1,2])
         pol = k1.checkbox("Polizei")
         rd = k2.checkbox("RD")
         fs = k3.checkbox("FS")
         fsi = k4.text_input("Details FS")
-        
         txt = st.text_area("Bericht", height=150)
         submit = st.form_submit_button("🚀 SPEICHERN", use_container_width=True)
 
@@ -166,11 +166,11 @@ with st.expander("➕ NEUEN EINSATZ ERFASSEN", expanded=False):
                                      "Ja" if pol else "Nein", "Ja" if rd else "Nein", "Ja" if fs else "Nein", 
                                      str(fsi), str(txt)]], columns=daten.columns)
             pd.concat([daten, new_row], ignore_index=True).to_csv(DATEI, index=False)
-            st.success(f"Gespeichert! (Info an {', '.join(RECIPIENTS)})")
+            st.success(f"Gespeichert!")
             st.rerun()
 
 # --- ARCHIV ---
-st.subheader("📚 Archiv")
+st.subheader("📚 Letzte Einsätze")
 if not daten.empty:
     filtered = daten.copy()
     if f_datum: filtered = filtered[filtered['Datum'] == str(f_datum)]
@@ -184,8 +184,8 @@ if not daten.empty:
 
         st.markdown(f"""
             <div class="einsatz-card">
-                <div style="font-weight:bold; color:#004b95;">📍 {row['Ort']}</div>
-                <div style="font-size:0.8rem; color:#666;">📅 {row['Datum']} | ⏰ {row['Anfang']}-{row['Ende']}</div>
+                <div style="font-weight:bold; color:#6ea8fe;">📍 {row['Ort']}</div>
+                <div style="font-size:0.8rem; color:#bbb;">📅 {row['Datum']} | ⏰ {row['Anfang']}-{row['Ende']}</div>
                 <div style="margin-top:5px;">{badges}</div>
             </div>
         """, unsafe_allow_html=True)
@@ -193,9 +193,8 @@ if not daten.empty:
         with st.expander("Details / Bearbeiten"):
             t1, t2, t3 = st.tabs(["📄 Lesen", "✏️ Editieren", "🗑️ Löschen"])
             with t1:
-                c_a, c_b = st.columns([4,1])
-                c_a.info(row['Bericht'])
-                c_b.download_button("📄 PDF", erstelle_pdf(row), f"Einsatz_{i}.pdf", key=f"pdf_{i}", use_container_width=True)
+                st.info(row['Bericht'])
+                st.download_button("📄 PDF", erstelle_pdf(row), f"Einsatz_{i}.pdf", key=f"pdf_{i}")
             with t2:
                 with st.form(f"edit_{i}"):
                     e_ort = st.text_input("Ort", value=row['Ort'])
@@ -206,7 +205,7 @@ if not daten.empty:
                         daten.to_csv(DATEI, index=False)
                         st.rerun()
             with t3:
-                if st.button("❌ Unwiderruflich löschen", key=f"del_{i}"):
+                if st.button("❌ Löschen", key=f"del_{i}"):
                     daten = daten.drop(i)
                     daten.to_csv(DATEI, index=False)
                     st.rerun()
