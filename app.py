@@ -13,21 +13,26 @@ from streamlit_js_eval import get_geolocation
 # --- 1. SEITEN-KONFIGURATION ---
 st.set_page_config(page_title="OA Augsburg Pro", page_icon="🚓", layout="wide")
 
-# --- 2. SESSION STATE ---
+# --- 2. SESSION STATE (Merkt sich Logins für die Sitzung) ---
 if "auth" not in st.session_state:
     st.session_state["auth"] = False
+if "admin_auth" not in st.session_state:
+    st.session_state["admin_auth"] = False
 
 # --- 3. SICHERHEIT & SECRETS ---
+# Passwort-Definition
 try:
     DIENST_PW = st.secrets["dienst_password"]
-    ADMIN_PW = st.secrets["admin_password"]
     MASTER_KEY = st.secrets["master_key"]
 except:
     DIENST_PW = "1234"
-    ADMIN_PW = "admin789"
     MASTER_KEY = "AugsburgSicherheit32ZeichenCheck!"
 
+# Festgelegtes Admin-Passwort
+ADMIN_PW = "admin789"
+
 def get_cipher():
+    # Erzeugt den Schlüssel aus dem Master-Key
     key_64 = base64.urlsafe_b64encode(MASTER_KEY[:32].encode().ljust(32))
     return Fernet(key_64)
 
@@ -42,7 +47,7 @@ def entschluesseln(safe_text):
     except:
         return "[Entschlüsselungsfehler]"
 
-# --- 4. DATEN & STRASSEN ---
+# --- 4. DATEN & STRASSEN AUGSBURG ---
 DATEI = "zentral_archiv_secure.csv"
 STRASSEN_AUGSBURG = sorted([
     "Maximilianstraße", "Königsplatz", "Rathausplatz", "Moritzplatz", "Ulrichsplatz", 
@@ -100,9 +105,31 @@ if not st.session_state["auth"]:
                 st.error("Falsches Passwort")
     st.stop()
 
-# --- 7. HAUPTSEITE ---
+# --- 7. ADMIN BEREICH (Sidebar) ---
+with st.sidebar:
+    st.header("⚙️ Verwaltung")
+    if not st.session_state["admin_auth"]:
+        admin_input = st.text_input("Admin-Passwort", type="password")
+        if st.button("Admin Login"):
+            if admin_input == ADMIN_PW:
+                st.session_state["admin_auth"] = True
+                st.success("Admin-Modus aktiv!")
+                st.rerun()
+            else:
+                st.error("Falsches Passwort")
+    else:
+        st.success("✅ Admin-Status aktiv")
+        if st.button("Admin Logout"):
+            st.session_state["admin_auth"] = False
+            st.rerun()
+    
+    st.divider()
+    st.info("Empfänger: Kevin.woelki@augsburg.de\nkevinworlki@outlook.de")
+
+# --- 8. HAUPTSEITE ---
 st.title("📋 Einsatzbericht")
 
+# GPS abrufen
 loc = get_geolocation()
 gps_ready = f"{loc['coords']['latitude']}, {loc['coords']['longitude']}" if loc else "-"
 
@@ -110,8 +137,10 @@ def lade_daten():
     spalten = ["Datum", "Beginn", "Ende", "Ort", "Hausnummer", "Zeugen", "Bericht", "AZ", "Foto", "Dienstkraft", "GPS", "Kraefte"]
     if os.path.exists(DATEI):
         df = pd.read_csv(DATEI).astype(str)
+        # Fehlende Spalten für alte Datenbestände ergänzen
         for col in spalten:
             if col not in df.columns: df[col] = "-"
+        # Entschlüsselung
         for col in ["Bericht", "Zeugen", "Foto", "Kraefte"]:
             df[col] = df[col].apply(entschluesseln)
         return df[spalten]
@@ -133,15 +162,13 @@ with st.expander("➕ NEUEN BERICHT SCHREIBEN", expanded=True):
         hsnr = o2.text_input("Nr.")
         az = o3.text_input("AZ")
 
-        # --- NEU: EINGESETZTE KRÄFTE ---
         st.write("**🚓 Eingesetzte Kräfte vor Ort:**")
-        ck1, ck2, ck3, ck4 = st.columns(4)
+        ck1, ck2, ck3 = st.columns(3)
         pol_check = ck1.checkbox("Polizei")
-        funkstreife = ck1.text_input("Funkstreife", placeholder="z.B. Aux 12/1", label_visibility="collapsed") if pol_check else ""
-        rtw_check = ck2.checkbox("RTW / Rettungsdienst")
+        funkstreife = ck1.text_input("Funkstreife", placeholder="z.B. Aux 12/1") if pol_check else ""
+        rtw_check = ck2.checkbox("RTW")
         fw_check = ck3.checkbox("Feuerwehr")
         
-        # Zusammenfassung der Kräfte für die Datenbank
         kraefte_liste = []
         if pol_check: kraefte_liste.append(f"Polizei ({funkstreife})")
         if rtw_check: kraefte_liste.append("RTW")
@@ -149,14 +176,11 @@ with st.expander("➕ NEUEN BERICHT SCHREIBEN", expanded=True):
         kraefte_str = ", ".join(kraefte_liste) if kraefte_liste else "Keine"
 
         st.divider()
-        
         auswahl = st.selectbox("⚡ Textbaustein", options=list(BAUSTEINE.keys()))
-        bericht = st.text_area("Sachverhalt (Tastatur-Mikrofon nutzen)", 
-                               value=BAUSTEINE[auswahl] if auswahl != "Auswählen..." else "", height=150)
-        
+        bericht = st.text_area("Sachverhalt", value=BAUSTEINE[auswahl] if auswahl != "Auswählen..." else "", height=150)
         z = st.text_input("Beteiligte Personen / Zeugen")
         dk = st.text_input("DK Kürzel")
-        f = st.file_uploader("📸 Foto zur Beweissicherung")
+        f = st.file_uploader("📸 Foto hochladen")
         
         if st.form_submit_button("🔒 VERSCHLÜSSELT SPEICHERN"):
             if bericht and ort_wahl:
@@ -191,5 +215,6 @@ for i, row in daten.iloc[::-1].iterrows():
         if row['Foto'] != "-":
             st.image(base64.b64decode(row['Foto']), width=300)
         
-        if st.sidebar.text_input(f"Admin Freigabe {row['AZ']}", type="password", key=f"adm_{i}") == ADMIN_PW:
-            st.download_button("📄 PDF Export", data=erstelle_pdf(row), file_name=f"Bericht_{row['AZ']}.pdf")
+        # Admin-Check für PDF Export
+        if st.session_state["admin_auth"]:
+            st.download_button("📄 PDF Export", data=erstelle_pdf(row), file_name=f"Bericht_{row['AZ']}.pdf", key=f"pdf_{i}")
