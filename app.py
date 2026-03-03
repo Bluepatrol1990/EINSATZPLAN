@@ -148,7 +148,8 @@ with st.expander("📝 NEUEN BERICHT ANLEGEN", expanded=True):
         az_val = c4.text_input("📂 AZ (z.B. 2026-001)")
         
         o1, o2 = st.columns([3, 1])
-        ort_val = o1.selectbox("🗺️ Ort", ["Königsplatz", "Maximilianstraße", "Rathausplatz", "Oberhauser Bahnhof", "Zwölf-Apostel-Platz", "Schillstr."])
+        # GEÄNDERT: text_input statt selectbox für manuelle Eingabe
+        ort_val = o1.text_input("🗺️ Einsatzort (Manuelle Eingabe)", placeholder="z.B. Königsplatz, Maximilianstraße...")
         hnr_val = o2.text_input("Hausnr.")
 
         st.subheader("👮 Beteiligte Behörden")
@@ -178,71 +179,3 @@ with st.expander("📝 NEUEN BERICHT ANLEGEN", expanded=True):
                 b64_img = base64.b64encode(buf.getvalue()).decode()
 
             new_data = {
-                "Datum": str(datum), "Beginn": beginn.strftime("%H:%M"), "Ende": ende.strftime("%H:%M"),
-                "Ort": ort_val, "Hausnummer": hnr_val, "Zeugen": verschluesseln(beteiligte),
-                "Bericht": verschluesseln(inhalt), "AZ": az_val, "Foto": verschluesseln(b64_img),
-                "GPS": gps_val, "Kraefte": verschluesseln(", ".join(k_list))
-            }
-            
-            df = pd.read_csv(DATEI) if os.path.exists(DATEI) else pd.DataFrame(columns=COLUMNS)
-            df = pd.concat([df, pd.DataFrame([new_data])], ignore_index=True)
-            df.to_csv(DATEI, index=False)
-            st.success("✅ Bericht erfolgreich gespeichert!")
-            st.rerun()
-
-# --- ARCHIV ---
-st.divider()
-st.header("📂 Einsatzarchiv")
-if os.path.exists(DATEI):
-    df_archive = pd.read_csv(DATEI).astype(str)
-    suche = st.text_input("🔍 Suche nach AZ oder Ort...")
-    
-    if suche:
-        df_archive = df_archive[df_archive['AZ'].str.contains(suche, case=False) | df_archive['Ort'].str.contains(suche, case=False)]
-
-    for idx, row in df_archive.iloc[::-1].iterrows():
-        st.markdown(f"""
-            <div class="report-card">
-                <div style="display: flex; justify-content: space-between;">
-                    <span style="font-size: 1.2em;">📂 <strong>AZ: {row['AZ']}</strong></span>
-                    <span>📅 {row['Datum']}</span>
-                </div>
-                <hr style="margin: 10px 0;">
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                    <div class="metric-box">📍 <b>Ort:</b> {row['Ort']} {row['Hausnummer']}</div>
-                    <div class="metric-box">🕒 <b>Zeit:</b> {row['Beginn']} - {row['Ende']}</div>
-                    <div class="metric-box">👮 <b>Kräfte:</b> {entschluesseln(row['Kraefte'])}</div>
-                    <div class="metric-box">🌐 <b>GPS:</b> {row['GPS']}</div>
-                </div>
-            </div>
-        """, unsafe_allow_html=True)
-        
-        c_det, c_pdf, c_del = st.columns([3, 1, 1])
-        with c_det:
-            with st.expander("👁️ Details anzeigen"):
-                st.info(f"**✍️ Sachverhalt:**\n{entschluesseln(row['Bericht'])}")
-                st.warning(f"**👥 Beteiligte:** {entschluesseln(row['Zeugen'])}")
-                img_data = entschluesseln(row['Foto'])
-                if img_data != "-": st.image(base64.b64decode(img_data), caption="Beweismittel", width=400)
-        
-        with c_pdf:
-            pdf_bytes = create_official_pdf(row)
-            st.download_button("📄 PDF Export", pdf_bytes, f"KOD_{row['AZ']}.pdf", "application/pdf", key=f"pdf_{idx}")
-        
-        with c_del:
-            if st.session_state["admin_auth"]:
-                if st.button("🗑️ Löschen", key=f"del_{idx}"):
-                    df_archive.drop(idx).to_csv(DATEI, index=False)
-                    st.rerun()
-
-# --- ADMIN ---
-with st.sidebar:
-    st.title("🛡️ Administration")
-    if st.checkbox("🔑 Admin-Modus"):
-        if st.text_input("Passwort", type="password") == ADMIN_PW:
-            st.session_state["admin_auth"] = True
-            st.success("Admin-Modus aktiv")
-            if st.button("🚨 ARCHIV LÖSCHEN"):
-                if os.path.exists(DATEI): os.remove(DATEI)
-                st.rerun()
-        else: st.session_state["admin_auth"] = False
