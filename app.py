@@ -12,10 +12,12 @@ from fpdf import FPDF
 # --- 1. GLOBALE VARIABLEN & KONFIGURATION ---
 DATEI = "zentral_archiv_secure.csv"
 COLUMNS = ["Datum", "Beginn", "Ende", "Ort", "Hausnummer", "Zeugen", "Bericht", "AZ", "Foto", "GPS", "Kraefte"]
+# Empfänger laut Anweisung hinterlegt
 EMPFAENGER = "Kevin.woelki@augsburg.de, kevinworlki@outlook.de"
 
 st.set_page_config(page_title="KOD Augsburg", page_icon="🚓", layout="wide")
 
+# Design-Anpassungen
 st.markdown("""
     <style>
     .report-card { 
@@ -31,6 +33,7 @@ st.markdown("""
         width: 100%;
         background-color: #004b95 !important;
         color: white !important;
+        border: none !important;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -97,7 +100,7 @@ def generate_pdf_bytes(row, bericht, kraefte, zeugen):
         pdf.set_font('Helvetica', 'I', 8)
         pdf.cell(0, 10, f'Erstellt am: {datetime.now().strftime("%d.%m.%Y %H:%M")} | Stadt Augsburg', 0, 0, 'C')
         return pdf.output()
-    except Exception as e:
+    except Exception:
         return None
 
 # --- 4. LOGIN ---
@@ -116,7 +119,7 @@ loc = get_geolocation()
 gps_val = f"{loc['coords']['latitude']}, {loc['coords']['longitude']}" if loc else "Nicht erfasst"
 
 with st.expander("➕ NEUEN BERICHT ERFASSEN", expanded=True):
-    st.subheader("👮 Kräfte vor Ort")
+    st.subheader("👮 Kraefte vor Ort")
     k_col1, k_col2 = st.columns([1, 2])
     with k_col1:
         st.checkbox("🚓 KOD", value=True, disabled=True)
@@ -176,7 +179,7 @@ suche = st.text_input("🔍 Suche (nach Ort oder AZ)")
 if os.path.exists(DATEI):
     archiv_df = pd.read_csv(DATEI).astype(str)
     
-    # KORREKTUR: 'suche' statt 'Suche'
+    # Fehler behoben: Suche wird korrekt verarbeitet
     if suche:
         display_df = archiv_df[archiv_df['Ort'].str.contains(suche, case=False) | archiv_df['AZ'].str.contains(suche, case=False)]
     else:
@@ -212,11 +215,4 @@ if os.path.exists(DATEI):
                 if f_dec != "-": 
                     st.image(base64.b64decode(f_dec), width=300)
     else:
-        st.info("Keine Berichte gefunden.")
-
-# Sidebar Admin
-with st.sidebar:
-    if st.checkbox("🔑 Admin"):
-        if st.text_input("Passwort", type="password") == ADMIN_PW:
-            st.session_state["admin_auth"] = True
-            st.success("Admin aktiv")
+        st.info("Keine Berichte im Archiv gefunden.")
