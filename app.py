@@ -12,12 +12,10 @@ from fpdf import FPDF
 # --- 1. GLOBALE VARIABLEN & KONFIGURATION ---
 DATEI = "zentral_archiv_secure.csv"
 COLUMNS = ["Datum", "Beginn", "Ende", "Ort", "Hausnummer", "Zeugen", "Bericht", "AZ", "Foto", "GPS", "Kraefte"]
-# Empfänger laut Anweisung
 EMPFAENGER = "Kevin.woelki@augsburg.de, kevinworlki@outlook.de"
 
 st.set_page_config(page_title="KOD Augsburg", page_icon="🚓", layout="wide")
 
-# Styling für die Berichts-Karten
 st.markdown("""
     <style>
     .report-card { 
@@ -28,6 +26,11 @@ st.markdown("""
         margin-bottom: 10px; 
         border: 1px solid #333333;
         color: white;
+    }
+    .stDownloadButton button {
+        width: 100%;
+        background-color: #004b95 !important;
+        color: white !important;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -41,7 +44,6 @@ MASTER_KEY = st.secrets.get("master_key", "AugsburgSicherheit32ZeichenCheck!")
 ADMIN_PW = "admin789"
 
 def get_cipher():
-    # Erzeugt einen gültigen Fernet-Key aus dem Master-Key
     key_64 = base64.urlsafe_b64encode(MASTER_KEY[:32].encode().ljust(32))
     return Fernet(key_64)
 
@@ -54,7 +56,7 @@ def entschluesseln(safe_text):
     try: return get_cipher().decrypt(safe_text.encode()).decode()
     except: return "[Fehler]"
 
-# --- 3. PDF GENERATOR KLASSE ---
+# --- 3. PDF GENERATOR ---
 class BerichtPDF(FPDF):
     def header(self):
         self.set_font('Helvetica', 'B', 14)
@@ -66,51 +68,37 @@ class BerichtPDF(FPDF):
     def chapter_title(self, label):
         self.set_font('Helvetica', 'B', 11)
         self.set_fill_color(230, 230, 230)
-        # Latin-1 Encoding um Fehler bei Sonderzeichen zu vermeiden
         safe_label = label.encode('latin-1', 'replace').decode('latin-1')
         self.cell(0, 8, safe_label, 0, 1, 'L', 1)
         self.ln(3)
 
     def chapter_body(self, body):
         self.set_font('Helvetica', '', 10)
-        if body:
-            safe_body = str(body).encode('latin-1', 'replace').decode('latin-1')
-            self.multi_cell(0, 6, safe_body)
-        else:
-            self.multi_cell(0, 6, "-")
+        safe_body = str(body if body else "-").encode('latin-1', 'replace').decode('latin-1')
+        self.multi_cell(0, 6, safe_body)
         self.ln(5)
 
 def generate_pdf_bytes(row, bericht, kraefte, zeugen):
     try:
         pdf = BerichtPDF()
         pdf.add_page()
-        
         pdf.chapter_title(f"Einsatzdetails - Datum: {row['Datum']} | AZ: {row['AZ']}")
         stammdaten = (f"Einsatzort: {row['Ort']} {row['Hausnummer']}\n"
                       f"Zeitraum: {row['Beginn']} - {row['Ende']} Uhr\n"
                       f"Eingesetzte Kraefte: {kraefte}\n"
                       f"GPS-Koordinaten: {row['GPS']}")
         pdf.chapter_body(stammdaten)
-        
         pdf.chapter_title("Sachverhalt / Feststellungen")
         pdf.chapter_body(bericht)
-        
         if zeugen != "-":
             pdf.chapter_title("Beteiligte Personen / Zeugen")
             pdf.chapter_body(zeugen)
-            
         pdf.set_y(-25)
         pdf.set_font('Helvetica', 'I', 8)
         pdf.cell(0, 10, f'Erstellt am: {datetime.now().strftime("%d.%m.%Y %H:%M")} | Stadt Augsburg', 0, 0, 'C')
-        
-        return pdf.output() # Gibt bytearray zurück (fpdf2 Standard)
+        return pdf.output()
     except Exception as e:
-        st.error(f"PDF-Fehler: {e}")
         return None
-
-# --- 4. DATENLISTEN ---
-STRASSEN_AUGSBURG = sorted(["Schillstr./ Dr. Schmelzingstr.", "Rathausplatz", "Maximilianstraße", "Königsplatz", "Zwölf-Apostel-Platz"])
-FESTSTELLUNGEN = sorted(["§ 111 OWiG", "Alkohol Spielplatz", "Betteln aggressiv", "Urinieren", "Lärmbeschwerde"])
 
 # --- 5. LOGIN ---
 if not st.session_state["auth"]:
@@ -124,7 +112,6 @@ if not st.session_state["auth"]:
 # --- 6. HAUPTSEITE ---
 st.title("📋 Einsatzbericht")
 
-# GPS Erfassung
 loc = get_geolocation()
 gps_val = f"{loc['coords']['latitude']}, {loc['coords']['longitude']}" if loc else "Nicht erfasst"
 
@@ -147,12 +134,11 @@ with st.expander("➕ NEUEN BERICHT ERFASSEN", expanded=True):
         az = c4.text_input("📂 Aktenzeichen (AZ)")
         
         o1, o2 = st.columns([3, 1])
-        ort = o1.selectbox("🗺️ Einsatzort", [None] + STRASSEN_AUGSBURG)
+        ort = o1.selectbox("🗺️ Einsatzort", [None] + ["Rathausplatz", "Maximilianstraße", "Königsplatz", "Zwölf-Apostel-Platz"])
         hnr = o2.text_input("Nr.")
         
         st.divider()
-        vorlage = st.selectbox("📑 Vorlage (Feststellung)", [None] + FESTSTELLUNGEN)
-        inhalt = st.text_area("Sachverhalt", value=vorlage if vorlage else "", height=150)
+        inhalt = st.text_area("Sachverhalt", height=150)
         beteiligte = st.text_input("👥 Beteiligte / Zeugen")
         foto = st.file_uploader("📸 Beweisfoto", type=["jpg", "jpeg", "png"])
 
@@ -179,7 +165,7 @@ with st.expander("➕ NEUEN BERICHT ERFASSEN", expanded=True):
             df = pd.read_csv(DATEI) if os.path.exists(DATEI) else pd.DataFrame(columns=COLUMNS)
             df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
             df.to_csv(DATEI, index=False)
-            st.success("Bericht erfolgreich gespeichert!")
+            st.success("Bericht gespeichert!")
             st.rerun()
 
 # --- 7. ARCHIV ---
@@ -189,60 +175,34 @@ suche = st.text_input("🔍 Suche (nach Ort oder AZ)")
 
 if os.path.exists(DATEI):
     archiv_df = pd.read_csv(DATEI).astype(str)
-    # Filterung
-    if suche:
-        display_df = archiv_df[archiv_df['Ort'].str.contains(suche, case=False) | archiv_df['AZ'].str.contains(suche, case=False)]
-    else:
-        display_df = archiv_df
+    display_df = archiv_df[archiv_df['Ort'].str.contains(suche, case=False) | archiv_df['AZ'].str.contains(suche, case=False)] if Suche else archiv_df
 
     for i, r in display_df.iloc[::-1].iterrows():
-        # Entschlüsselung
         b_dec = entschluesseln(r['Bericht'])
         k_dec = entschluesseln(r['Kraefte'])
         z_dec = entschluesseln(r['Zeugen'])
         f_dec = entschluesseln(r['Foto'])
 
-        # Karte anzeigen
-        st.markdown(f"""
-        <div class="report-card">
-            <strong>📅 {r['Datum']} | 📍 {r['Ort']} {r['Hausnummer']}</strong> (AZ: {r['AZ']})<br>
-            <small>🕒 {r['Beginn']} - {r['Ende']} | 👮 {k_dec}</small>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(f'<div class="report-card"><strong>📅 {r["Datum"]} | 📍 {r["Ort"]} {r["Hausnummer"]}</strong> (AZ: {r["AZ"]})</div>', unsafe_allow_html=True)
         
-        with st.expander("🔍 Details & PDF Export"):
-            col1, col2 = st.columns([3, 1])
-            with col1:
+        with st.expander("🔍 Details & PDF Download"):
+            c_left, c_right = st.columns([3, 1])
+            with c_left:
                 st.write(f"**Sachverhalt:**\n{b_dec}")
-                if z_dec != "-": st.write(f"**👥 Beteiligte:** {z_dec}")
-                st.write(f"📍 GPS: `{r['GPS']}`")
+                if z_dec != "-": st.write(f"**Beteiligte:** {z_dec}")
             
-            with col2:
-                # PDF Download Button
-                pdf_data = generate_pdf_bytes(r, b_dec, k_dec, z_dec)
-                if pdf_data:
+            with c_right:
+                # PDF wird hier erst beim Öffnen des Expanders generiert
+                pdf_bytes = generate_pdf_bytes(r, b_dec, k_dec, z_dec)
+                if pdf_bytes:
                     st.download_button(
                         label="📄 PDF Download",
-                        data=pdf_data,
-                        file_name=f"Einsatz_{r['Datum']}_{r['AZ']}.pdf",
+                        data=pdf_bytes,
+                        file_name=f"Bericht_{r['AZ']}.pdf",
                         mime="application/pdf",
-                        key=f"pdf_{i}"
+                        key=f"dl_{i}"
                     )
-            
-            if f_dec != "-":
-                st.image(base64.b64decode(f_dec), width=400, caption="Beweisfoto")
-            
-            if st.session_state["admin_auth"]:
-                if st.button(f"🗑️ Löschen", key=f"del_{i}"):
-                    archiv_df.drop(i).to_csv(DATEI, index=False)
-                    st.rerun()
+                else:
+                    st.error("Fehler beim Erstellen der PDF")
 
-# Sidebar
-with st.sidebar:
-    st.info(f"Angemeldet als KOD-Streife")
-    if st.checkbox("🔑 Admin-Modus"):
-        if st.text_input("Passwort", type="password") == ADMIN_PW:
-            st.session_state["admin_auth"] = True
-            st.success("Admin-Bereich aktiv")
-        else:
-            st.session_state["admin_auth"] = False
+            if f_dec != "-": st.image(base64.b64decode(f_dec), width=300)
