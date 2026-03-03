@@ -76,11 +76,11 @@ def erstelle_pdf(row):
     pdf.set_font("Arial", "B", 14)
     pdf.cell(0, 10, f"Einsatzprotokoll - AZ: {row['AZ']}", ln=True); pdf.ln(5)
     pdf.set_font("Arial", "", 10)
-    # PDF enthält nun auch die Endzeit und Zeugen
     content = (f"Datum: {row['Datum']}\n"
                f"Zeitraum: {row['Beginn']} bis {row['Ende']}\n"
                f"Ort: {row['Ort']} {row['Hausnummer']}\n"
                f"GPS: {row['GPS']}\n"
+               f"Kräfte vor Ort: {row['Kraefte']}\n"
                f"Zeugen/Beteiligte: {row['Zeugen']}\n\n"
                f"Bericht:\n{row['Bericht']}")
     pdf.multi_cell(0, 7, content)
@@ -101,21 +101,18 @@ if not st.session_state["auth"]:
     st.stop()
 
 # --- 7. HAUPTSEITE ---
-st.title("📋 Einsatzbericht") # Geändert von "Mobiler Einsatzbericht"
+st.title("📋 Einsatzbericht")
 
-# GPS abrufen
 loc = get_geolocation()
 gps_ready = f"{loc['coords']['latitude']}, {loc['coords']['longitude']}" if loc else "-"
 
 def lade_daten():
-    spalten = ["Datum", "Beginn", "Ende", "Ort", "Hausnummer", "Zeugen", "Bericht", "AZ", "Foto", "Dienstkraft", "GPS"]
+    spalten = ["Datum", "Beginn", "Ende", "Ort", "Hausnummer", "Zeugen", "Bericht", "AZ", "Foto", "Dienstkraft", "GPS", "Kraefte"]
     if os.path.exists(DATEI):
         df = pd.read_csv(DATEI).astype(str)
-        # Fehlende Spalten ergänzen, falls Datei alt ist
         for col in spalten:
             if col not in df.columns: df[col] = "-"
-        # Entschlüsselung
-        for col in ["Bericht", "Zeugen", "Foto"]:
+        for col in ["Bericht", "Zeugen", "Foto", "Kraefte"]:
             df[col] = df[col].apply(entschluesseln)
         return df[spalten]
     return pd.DataFrame(columns=spalten)
@@ -128,13 +125,30 @@ with st.expander("➕ NEUEN BERICHT SCHREIBEN", expanded=True):
         c1, c2, c3, c4 = st.columns([1,1,1,1])
         d = c1.date_input("Datum")
         t_start = c2.time_input("Beginn")
-        t_ende = c3.time_input("Ende") # Neues Feld: Endzeit
+        t_ende = c3.time_input("Ende")
         gps_val = c4.text_input("📍 GPS", value=gps_ready, disabled=True)
         
         o1, o2, o3 = st.columns([3,1,2])
         ort_wahl = o1.selectbox("Straße / Ort (Augsburg)", options=STRASSEN_AUGSBURG, index=None, placeholder="Straße wählen...")
         hsnr = o2.text_input("Nr.")
         az = o3.text_input("AZ")
+
+        # --- NEU: EINGESETZTE KRÄFTE ---
+        st.write("**🚓 Eingesetzte Kräfte vor Ort:**")
+        ck1, ck2, ck3, ck4 = st.columns(4)
+        pol_check = ck1.checkbox("Polizei")
+        funkstreife = ck1.text_input("Funkstreife", placeholder="z.B. Aux 12/1", label_visibility="collapsed") if pol_check else ""
+        rtw_check = ck2.checkbox("RTW / Rettungsdienst")
+        fw_check = ck3.checkbox("Feuerwehr")
+        
+        # Zusammenfassung der Kräfte für die Datenbank
+        kraefte_liste = []
+        if pol_check: kraefte_liste.append(f"Polizei ({funkstreife})")
+        if rtw_check: kraefte_liste.append("RTW")
+        if fw_check: kraefte_liste.append("Feuerwehr")
+        kraefte_str = ", ".join(kraefte_liste) if kraefte_liste else "Keine"
+
+        st.divider()
         
         auswahl = st.selectbox("⚡ Textbaustein", options=list(BAUSTEINE.keys()))
         bericht = st.text_area("Sachverhalt (Tastatur-Mikrofon nutzen)", 
@@ -155,10 +169,9 @@ with st.expander("➕ NEUEN BERICHT SCHREIBEN", expanded=True):
                     img.save(buf, format="JPEG", quality=75)
                     f_b = base64.b64encode(buf.getvalue()).decode()
                 
-                # Alle Daten für die CSV vorbereiten (Zeugen & Bericht verschlüsselt)
                 new_row = [str(d), t_start.strftime("%H:%M"), t_ende.strftime("%H:%M"), 
                            str(ort_wahl), hsnr, verschluesseln(z), verschluesseln(bericht), 
-                           az, verschluesseln(f_b), dk, gps_ready]
+                           az, verschluesseln(f_b), dk, gps_ready, verschluesseln(kraefte_str)]
                 
                 new_df = pd.DataFrame([new_row], columns=daten.columns)
                 pd.concat([pd.read_csv(DATEI) if os.path.exists(DATEI) else pd.DataFrame(columns=daten.columns), new_df]).to_csv(DATEI, index=False)
@@ -168,20 +181,15 @@ with st.expander("➕ NEUEN BERICHT SCHREIBEN", expanded=True):
 st.divider()
 st.subheader("📂 Verschlüsseltes Archiv")
 for i, row in daten.iloc[::-1].iterrows():
-    # Titel der Kachel
     with st.expander(f"📍 {row['Ort']} | {row['Datum']} | AZ: {row['AZ']}"):
-        # Anzeige von Zeit und Zeugen im Archiv
-        c_arch1, c_arch2 = st.columns(2)
+        c_arch1, c_arch2, c_arch3 = st.columns(3)
         c_arch1.write(f"**⏱ Zeitraum:** {row['Beginn']} - {row['Ende']}")
-        c_arch2.write(f"**👥 Zeugen/Beteiligte:** {row['Zeugen']}")
+        c_arch2.write(f"**🚓 Kräfte:** {row['Kraefte']}")
+        c_arch3.write(f"**👥 Beteiligte:** {row['Zeugen']}")
         
-        st.write(f"**📝 Sachverhalt:**")
         st.info(row['Bericht'])
-        
         if row['Foto'] != "-":
             st.image(base64.b64decode(row['Foto']), width=300)
         
-        # Admin / Kevin Bereich
         if st.sidebar.text_input(f"Admin Freigabe {row['AZ']}", type="password", key=f"adm_{i}") == ADMIN_PW:
-            st.write("Empfänger: Kevin.woelki@augsburg.de")
             st.download_button("📄 PDF Export", data=erstelle_pdf(row), file_name=f"Bericht_{row['AZ']}.pdf")
