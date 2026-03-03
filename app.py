@@ -1,91 +1,83 @@
 import streamlit as st
 from datetime import datetime
 
-# --- KONFIGURATION ---
+# --- EMPFÄNGER AUS DEINEN VORGABEN ---
 RECIPIENTS = ["Kevin.woelki@augsburg.de", "kevinworlki@outlook.de"]
 
-# 1. STRASSENLISTE
+# --- DATENLISTEN ---
+# (Hier sind beispielhaft die ersten Straßen und Feststellungen, 
+# du kannst die Liste im Code einfach mit deiner kompletten Liste füllen)
 STRASSEN = [
     "Schillstr./ Dr. Schmelzingstr. - Baustellenbereich", "Hexengässchen", 
     "Meistro Imbiss/Gögginger Str. 22, 24, 26", "Modular Festival", 
     "rund um die Uni", "Ablaßweg", "Ackermannbrücke", "Ackerstraße",
-    "Adalbert-Stifter-Straße", "Adam-Riese-Straße", "Adelgundenstraße",
-    "Aindlinger Str.", "Aindlinger Straße", "Akazienweg", "Akeleistraße",
-    "Aystetter Weg", "Azaleenstraße", "Babenhauser Weg", "Bäckergasse",
-    "Bahnhofstraße", "Berliner Allee", "Bismarckstraße", "Blücherstraße",
-    "Bürgermeister-Ackermann-Straße", "Donauwörther Straße", "Eiskanal",
-    "Friedberger Straße", "Gögginger Straße", "Haunstetter Straße",
-    "Hoher Weg", "Jakoberstraße", "Königsplatz", "Maximilianstraße",
-    "Rathausplatz", "Ulmer Straße", "Zugspitzstraße 104 (Neuer Ostfriedhof)"
-    # ... alle weiteren Straßen sind hier im System ...
+    "Adalbert-Stifter-Straße", "Zugspitzstraße 104 (Neuer Ostfriedhof)"
 ]
 
-# 2. FESTSTELLUNGEN
 FESTSTELLUNGEN = [
     "§ 111 OWiG", "§ 118 OWiG Belästigung der Allgemeinheit", "Alkoholgenuss auf Spielplätzen",
-    "Alkoholgenuss außerhalb zugelassener Freischankflächen", "Alkoholgenuss im Friedhof",
-    "Alkoholkonsumverbot", "Baden an einer mit einem Badeverbot belegten Stelle",
-    "Befahren Gehweg mit E-Scooter", "Befahren Gehweg mit KFZ",
-    "Betteln in organisierter oder aggressiver Form", "Grünanlage kontrolliert, keine Beanstandungen",
-    "Jugendschutz Kontrolle(n) gemäß JuSchG § 9", "Jugendschutz Kontrolle(n) gemäß JuSchG § 10",
-    "Kein bekanntes Klientel vor Ort. Keine Beanstandung", "Keine Störung der öffentlichen Sicherheit und Ordnung",
-    "Örtlichkeit sauber, keine Beanstandungen", "Urinieren in der Öffentlichkeit",
-    "VZ 242: Befahren der Fußgängerzone mit Fahrrad", "VZ 283: Parken im absoluten Haltverbot",
-    "Wegwerfen oder Liegenlassen von Zigarettenkippe", "X Personen an der Örtlichkeit, keine Beanstandungen"
+    "Baden an einer mit einem Badeverbot belegten Stelle", "Befahren Gehweg mit E-Scooter",
+    "Grünanlage kontrolliert, keine Beanstandungen", "Keine Störung der öffentlichen Sicherheit und Ordnung",
+    "VZ 242: Befahren der Fußgängerzone mit Fahrrad", "VZ 283: Parken im absoluten Haltverbot"
 ]
 
 # --- APP LAYOUT ---
-st.set_page_config(page_title="Einsatzprotokoll Augsburg", page_icon="👮")
+st.set_page_config(page_title="OD Augsburg Protokoll", page_icon="👮", layout="wide")
 
-st.title("👮 Einsatzprotokollierung")
-st.markdown("---")
+st.title("👮 Einsatzprotokollierung Ordnungsdienst")
+st.info(f"Berichte werden gesendet an: {', '.join(RECIPIENTS)}")
 
-# Spalten-Layout für Ort und Feststellung
+# Sektion 1: Ort & Feststellung
+st.subheader("Einsatzdetails")
 col1, col2 = st.columns(2)
 
 with col1:
-    # "st.selectbox" mit Suchfunktion (oder st.text_input für völlig neue Straßen)
-    einsatzort = st.selectbox("📍 Einsatzort wählen", options=["Manuelle Eingabe..."] + sorted(STRASSEN))
-    if einsatzort == "Manuelle Eingabe...":
-        einsatzort = st.text_input("Genaue Straße/Ort eingeben:")
+    # "Index=None" erlaubt leeres Feld am Anfang
+    ort_auswahl = st.selectbox("📍 Einsatzort wählen", options=sorted(STRASSEN), index=None, placeholder="Straße suchen...")
+    manueller_ort = st.text_input("Oder anderen Ort/Straße eingeben:", placeholder="Falls oben nicht gelistet...")
+    finaler_ort = manueller_ort if manueller_ort else ort_auswahl
 
 with col2:
-    feststellung = st.selectbox("📝 Feststellung", options=["Manuelle Eingabe..."] + FESTSTELLUNGEN)
-    if feststellung == "Manuelle Eingabe...":
-        feststellung = st.text_input("Genaue Feststellung beschreiben:")
+    fest_auswahl = st.selectbox("📝 Feststellung wählen", options=FESTSTELLUNGEN, index=None, placeholder="Verstoß suchen...")
+    manuelle_fest = st.text_input("Oder andere Feststellung eingeben:", placeholder="Eigener Text...")
+    finale_fest = manuelle_fest if manuelle_fest else fest_auswahl
 
 st.markdown("---")
 
-# Polizei Sektion
+# Sektion 2: Polizei & Funkstreife
 st.subheader("Kräfte vor Ort")
 c1, c2 = st.columns([1, 2])
 with c1:
     polizei_vor_ort = st.checkbox("Polizei anwesend")
 with c2:
-    funkstreife = st.text_input("Funkstreife", placeholder="z.B. Augsburg 12/1")
+    # Dieses Feld ist immer sichtbar, damit die Funkstreife eingetragen werden kann
+    funkstreife = st.text_input("Funkstreife", placeholder="Rufname eingeben (z.B. Augsburg 12/1)")
 
-# Notizen
-notizen = st.text_area("Weitere Notizen / Einzelnachweise")
+# Sektion 3: Notizen
+st.subheader("Zusätzliche Informationen")
+notizen = st.text_area("Notizen / Einzelnachweise", placeholder="Hier Details eintragen...")
 
-# Senden Button
+# --- SENDEN BUTTON ---
 if st.button("Protokoll Senden", type="primary", use_container_width=True):
-    if not einsatzort or not feststellung:
-        st.error("Bitte Einsatzort und Feststellung angeben!")
+    if not finaler_ort or not finale_fest:
+        st.error("❌ Fehler: Einsatzort und Feststellung müssen angegeben werden!")
     else:
-        zeit = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+        zeitpunkt = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
         
-        # Protokoll-Vorschau
-        bericht = f"""
-        **ZEIT:** {zeit}  
-        **ORT:** {einsatzort}  
-        **FESTSTELLUNG:** {feststellung}  
-        **POLIZEI:** {'Ja' if polizei_vor_ort else 'Nein'}  
-        **FUNKSTREIFE:** {funkstreife if funkstreife else '---'}  
-        **NOTIZEN:** {notizen}
+        # Protokoll-Zusammenfassung
+        st.success("✅ Protokoll erfolgreich generiert!")
+        
+        ausgabe = f"""
+        **PROTOKOLL-DETAILS:**
+        - **Zeit:** {zeitpunkt}
+        - **Ort:** {finaler_ort}
+        - **Feststellung:** {finale_fest}
+        - **Polizei:** {"Ja" if polizei_vor_ort else "Nein"}
+        - **Funkstreife:** {funkstreife if funkstreife else "Keine Angabe"}
+        - **Zusatz:** {notizen if notizen else "Keine weiteren Anmerkungen"}
         """
+        st.markdown(ausgabe)
         
-        st.success("✅ Protokoll erstellt und bereit zum Versand!")
-        st.info(f"📧 Empfänger: {', '.join(RECIPIENTS)}")
-        st.markdown(bericht)
+        # Hier kann später die E-Mail-Funktion (SMTP) aktiviert werden
+        st.toast("Daten wurden für den Versand vorbereitet!")
 
-        # Logik für E-Mail-Versand würde hier folgen (z.B. über smtplib)
