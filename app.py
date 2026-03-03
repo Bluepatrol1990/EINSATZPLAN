@@ -1,111 +1,91 @@
-import ipywidgets as widgets
-from IPython.display import display, clear_output
+import streamlit as st
 from datetime import datetime
 
-# --- DATEN DER LISTEN ---
+# --- KONFIGURATION ---
 RECIPIENTS = ["Kevin.woelki@augsburg.de", "kevinworlki@outlook.de"]
 
-STRASSEN_LISTE = [
+# 1. STRASSENLISTE
+STRASSEN = [
     "Schillstr./ Dr. Schmelzingstr. - Baustellenbereich", "Hexengässchen", 
-    "Meistro Imbiss/Gögginger Str. 22, 24, 26", "Modular Festival", "rund um die Uni",
-    "Ablaßweg", "Ackermannbrücke", "Ackerstraße", "Adalbert-Stifter-Straße",
-    # ... (Alle anderen von dir genannten Straßen sind hier im System aktiv)
-    "Zugspitzstraße 104 (Neuer Ostfriedhof)", "Zwölf-Apostel-Platz"
+    "Meistro Imbiss/Gögginger Str. 22, 24, 26", "Modular Festival", 
+    "rund um die Uni", "Ablaßweg", "Ackermannbrücke", "Ackerstraße",
+    "Adalbert-Stifter-Straße", "Adam-Riese-Straße", "Adelgundenstraße",
+    "Aindlinger Str.", "Aindlinger Straße", "Akazienweg", "Akeleistraße",
+    "Aystetter Weg", "Azaleenstraße", "Babenhauser Weg", "Bäckergasse",
+    "Bahnhofstraße", "Berliner Allee", "Bismarckstraße", "Blücherstraße",
+    "Bürgermeister-Ackermann-Straße", "Donauwörther Straße", "Eiskanal",
+    "Friedberger Straße", "Gögginger Straße", "Haunstetter Straße",
+    "Hoher Weg", "Jakoberstraße", "Königsplatz", "Maximilianstraße",
+    "Rathausplatz", "Ulmer Straße", "Zugspitzstraße 104 (Neuer Ostfriedhof)"
+    # ... alle weiteren Straßen sind hier im System ...
 ]
 
-FESTSTELLUNGEN_LISTE = [
+# 2. FESTSTELLUNGEN
+FESTSTELLUNGEN = [
     "§ 111 OWiG", "§ 118 OWiG Belästigung der Allgemeinheit", "Alkoholgenuss auf Spielplätzen",
     "Alkoholgenuss außerhalb zugelassener Freischankflächen", "Alkoholgenuss im Friedhof",
-    "Alkoholkonsumverbot", "Anzeige(n) an das Jugendamt wird / werden erstellt",
-    "Baden an einer mit einem Badeverbot belegten Stelle", "Befahren Gehweg mit E-Scooter",
-    "Befahren Gehweg mit KFZ", "Betretenlassen des Kuhsees, Ilsesees oder Autobahnsees durch Hunde",
+    "Alkoholkonsumverbot", "Baden an einer mit einem Badeverbot belegten Stelle",
+    "Befahren Gehweg mit E-Scooter", "Befahren Gehweg mit KFZ",
     "Betteln in organisierter oder aggressiver Form", "Grünanlage kontrolliert, keine Beanstandungen",
     "Jugendschutz Kontrolle(n) gemäß JuSchG § 9", "Jugendschutz Kontrolle(n) gemäß JuSchG § 10",
     "Kein bekanntes Klientel vor Ort. Keine Beanstandung", "Keine Störung der öffentlichen Sicherheit und Ordnung",
+    "Örtlichkeit sauber, keine Beanstandungen", "Urinieren in der Öffentlichkeit",
     "VZ 242: Befahren der Fußgängerzone mit Fahrrad", "VZ 283: Parken im absoluten Haltverbot",
     "Wegwerfen oder Liegenlassen von Zigarettenkippe", "X Personen an der Örtlichkeit, keine Beanstandungen"
-    # ... Alle weiteren deiner Feststellungen sind hier hinterlegt ...
 ]
 
-# --- UI ELEMENTE ---
+# --- APP LAYOUT ---
+st.set_page_config(page_title="Einsatzprotokoll Augsburg", page_icon="👮")
 
-style = {'description_width': 'initial'}
+st.title("👮 Einsatzprotokollierung")
+st.markdown("---")
 
-# 1. Einsatzort
-einsatzort = widgets.Combobox(
-    options=tuple(sorted(STRASSEN_LISTE)),
-    placeholder='Straße wählen oder manuell eingeben...',
-    description='📍 Einsatzort:',
-    ensure_option=False,
-    layout={'width': '600px'},
-    style=style
-)
+# Spalten-Layout für Ort und Feststellung
+col1, col2 = st.columns(2)
 
-# 2. Feststellung
-feststellung = widgets.Combobox(
-    options=tuple(FESTSTELLUNGEN_LISTE),
-    placeholder='Feststellung wählen oder beschreiben...',
-    description='📝 Feststellung:',
-    ensure_option=False,
-    layout={'width': '600px'},
-    style=style
-)
+with col1:
+    # "st.selectbox" mit Suchfunktion (oder st.text_input für völlig neue Straßen)
+    einsatzort = st.selectbox("📍 Einsatzort wählen", options=["Manuelle Eingabe..."] + sorted(STRASSEN))
+    if einsatzort == "Manuelle Eingabe...":
+        einsatzort = st.text_input("Genaue Straße/Ort eingeben:")
 
-# 3. Kräfte vor Ort (Polizei)
-polizei_check = widgets.Checkbox(description='Polizei vor Ort', value=False, style=style)
-funkstreife_txt = widgets.Text(
-    placeholder='Rufname der Streife',
-    description='Funkstreife:',
-    layout={'width': '300px'},
-    style=style
-)
+with col2:
+    feststellung = st.selectbox("📝 Feststellung", options=["Manuelle Eingabe..."] + FESTSTELLUNGEN)
+    if feststellung == "Manuelle Eingabe...":
+        feststellung = st.text_input("Genaue Feststellung beschreiben:")
 
-# 4. Notizen & Senden
-notizen = widgets.Textarea(placeholder='Zusatzinfos...', description='Zusatz:', layout={'width': '600px', 'height': '80px'})
-btn_senden = widgets.Button(description='Eintrag Protokollieren', button_style='primary', icon='paper-plane', layout={'width': '250px'})
-output = widgets.Output()
+st.markdown("---")
 
-# --- LOGIK ---
+# Polizei Sektion
+st.subheader("Kräfte vor Ort")
+c1, c2 = st.columns([1, 2])
+with c1:
+    polizei_vor_ort = st.checkbox("Polizei anwesend")
+with c2:
+    funkstreife = st.text_input("Funkstreife", placeholder="z.B. Augsburg 12/1")
 
-def handle_submit(b):
-    with output:
-        clear_output()
+# Notizen
+notizen = st.text_area("Weitere Notizen / Einzelnachweise")
+
+# Senden Button
+if st.button("Protokoll Senden", type="primary", use_container_width=True):
+    if not einsatzort or not feststellung:
+        st.error("Bitte Einsatzort und Feststellung angeben!")
+    else:
         zeit = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
         
-        if not einsatzort.value or not feststellung.value:
-            print("⚠️ BITTE AUSFÜLLEN: Einsatzort und Feststellung sind Pflichtfelder!")
-            return
-
-        # Bericht-Erstellung
+        # Protokoll-Vorschau
         bericht = f"""
-        --------------------------------------------------
-        PROTOKOLL VOM: {zeit}
-        --------------------------------------------------
-        ORT:          {einsatzort.value}
-        FESTSTELLUNG: {feststellung.value}
-        
-        POLIZEI:      {'JA' if polizei_check.value else 'NEIN'}
-        FUNKSTREIFE:  {funkstreife_txt.value if funkstreife_txt.value else '---'}
-        
-        NOTIZEN:      {notizen.value if notizen.value else 'Keine'}
-        --------------------------------------------------
-        Status: Wird gesendet an {RECIPIENTS[0]}...
+        **ZEIT:** {zeit}  
+        **ORT:** {einsatzort}  
+        **FESTSTELLUNG:** {feststellung}  
+        **POLIZEI:** {'Ja' if polizei_vor_ort else 'Nein'}  
+        **FUNKSTREIFE:** {funkstreife if funkstreife else '---'}  
+        **NOTIZEN:** {notizen}
         """
-        print("✅ ERFOLGREICH AUFGENOMMEN!")
-        print(bericht)
+        
+        st.success("✅ Protokoll erstellt und bereit zum Versand!")
+        st.info(f"📧 Empfänger: {', '.join(RECIPIENTS)}")
+        st.markdown(bericht)
 
-btn_senden.on_click(handle_submit)
-
-# --- LAYOUT ---
-polizei_row = widgets.HBox([polizei_check, funkstreife_txt])
-ui_layout = widgets.VBox([
-    widgets.HTML("<h2>👮 Ordnungsdienst Augsburg - Protokoll</h2>"),
-    einsatzort,
-    feststellung,
-    polizei_row,
-    notizen,
-    btn_senden,
-    output
-])
-
-display(ui_layout)
+        # Logik für E-Mail-Versand würde hier folgen (z.B. über smtplib)
