@@ -6,23 +6,16 @@ from fpdf import FPDF
 import io
 import base64
 from PIL import Image
-import locale
 
-# --- SPRACHE ---
-try:
-    locale.setlocale(locale.LC_TIME, "de_DE.UTF-8")
-except:
-    pass
-
+# --- GRUNDEINSTELLUNGEN ---
 st.set_page_config(page_title="OA Einsatzbericht", page_icon="🚓", layout="wide")
 
-# --- STYLING (Helles Design mit blauen Akzenten) ---
+# --- MINIMALES DESIGN (Verhindert schwarzen Bildschirm) ---
 st.markdown("""
     <style>
-    .main-title { font-size: 2.5rem; font-weight: 800; color: #004b95; border-bottom: 3px solid #004b95; padding-bottom: 10px; margin-bottom: 30px; }
-    .einsatz-card { background: #f9f9f9; border-radius: 12px; padding: 20px; margin-bottom: 15px; border: 1px solid #ddd; border-left: 10px solid #004b95; color: #333; }
-    .card-meta { color: #666; font-size: 0.95rem; margin-top: 5px; }
-    .dk-badge { background: #004b95; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: bold; }
+    .stApp { background-color: #ffffff; color: #000000; }
+    .main-title { font-size: 2.2rem; font-weight: 800; color: #004b95; border-bottom: 2px solid #004b95; padding-bottom: 10px; }
+    .einsatz-card { background: #f0f2f6; border-radius: 10px; padding: 15px; margin-bottom: 10px; border-left: 8px solid #004b95; color: #000000; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -30,22 +23,16 @@ st.markdown("""
 DIENST_PW = "1234"
 ADMIN_PW = "admin789"
 DATEI = "zentral_archiv.csv"
-STRASSEN_AUGSBURG = sorted([
-    "Maximilianstraße", "Königsplatz", "Rathausplatz", "Moritzplatz", "Ulrichsplatz",
-    "Annastraße", "Bahnhofstraße", "Hermanstraße", "Karlstraße", "Grottenau", "Fuggerstraße", 
-    "Konrad-Adenauer-Allee", "Elias-Holl-Platz", "Haunstetter Straße", "Gögginger Straße", 
-    "Friedberger Straße", "Berliner Allee", "Bgm.-Ackermann-Straße", "Donauwörther Straße", 
-    "Ulmer Straße", "Hirblinger Straße", "Lechhauser Straße", "Neuburger Straße", "Viktoriastraße"
-])
+STRASSEN_AUGSBURG = sorted(["Maximilianstraße", "Königsplatz", "Rathausplatz", "Moritzplatz", "Ulrichsplatz", "Annastraße", "Bahnhofstraße", "Hermanstraße", "Karlstraße", "Grottenau", "Fuggerstraße", "Konrad-Adenauer-Allee", "Elias-Holl-Platz", "Haunstetter Straße", "Gögginger Straße", "Friedberger Straße", "Berliner Allee", "Bgm.-Ackermann-Straße", "Donauwörther Straße", "Ulmer Straße", "Hirblinger Straße", "Lechhauser Straße", "Neuburger Straße", "Viktoriastraße"])
 
 # --- FUNKTIONEN ---
 def lade_daten():
     spalten = ["Datum", "Beginn", "Ende", "Ort", "Hausnummer", "Zeugen", "Bericht", "AZ", "Foto", "Dienstkraft"]
     if os.path.exists(DATEI):
-        df = pd.read_csv(DATEI)
-        for s in spalten:
-            if s not in df.columns: df[s] = "-"
-        return df[spalten].fillna("-").astype(str)
+        try:
+            return pd.read_csv(DATEI).fillna("-").astype(str)
+        except:
+            return pd.DataFrame(columns=spalten)
     return pd.DataFrame(columns=spalten)
 
 def bild_zu_base64(bild_datei):
@@ -57,39 +44,77 @@ def bild_zu_base64(bild_datei):
         return base64.b64encode(buffered.getvalue()).decode()
     return "-"
 
-def erstelle_behoerden_pdf(row):
+def erstelle_pdf(row):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", "B", 16)
-    pdf.cell(0, 10, "Stadt Augsburg - Ordnungsamt", ln=True)
-    pdf.set_font("Arial", "B", 12)
-    pdf.cell(0, 10, f"Einsatzbericht | AZ: {row['AZ']}", ln=True)
-    pdf.line(10, 30, 200, 30)
-    pdf.ln(10)
-    
-    pdf.set_font("Arial", "B", 11)
-    pdf.cell(40, 8, "Ort:", 0); pdf.set_font("Arial", "", 11); pdf.cell(0, 8, f"{row['Ort']} {row['Hausnummer']}", ln=1)
-    pdf.set_font("Arial", "B", 11)
-    pdf.cell(40, 8, "Zeitraum:", 0); pdf.set_font("Arial", "", 11); pdf.cell(0, 8, f"{row['Datum']} ({row['Beginn']} - {row['Ende']} Uhr)", ln=1)
-    pdf.set_font("Arial", "B", 11)
-    pdf.cell(40, 8, "Dienstkraft:", 0); pdf.set_font("Arial", "", 11); pdf.cell(0, 8, f"{row['Dienstkraft']}", ln=1)
-    
-    pdf.ln(10)
-    pdf.set_font("Arial", "B", 12)
-    pdf.cell(0, 10, "Sachverhalt / Feststellungen:", ln=True)
+    pdf.cell(0, 10, "Einsatzbericht Stadt Augsburg", ln=True)
     pdf.set_font("Arial", "", 11)
-    # Umlaute-Sicherung
-    txt = row['Bericht'].encode('latin-1', 'ignore').decode('latin-1')
-    pdf.multi_cell(0, 7, txt)
-    
+    pdf.ln(5)
+    pdf.cell(0, 8, f"Ort: {row['Ort']} {row['Hausnummer']}", ln=1)
+    pdf.cell(0, 8, f"Zeit: {row['Datum']} ({row['Beginn']}-{row['Ende']})", ln=1)
+    pdf.cell(0, 8, f"AZ: {row['AZ']} | DK: {row['Dienstkraft']}", ln=1)
+    pdf.ln(5)
+    pdf.multi_cell(0, 7, f"Bericht: {row['Bericht']}".encode('latin-1', 'ignore').decode('latin-1'))
     return pdf.output(dest='S').encode('latin-1')
 
-# --- LOGIN & ADMIN-SESSION ---
+# --- LOGIN ---
 if "auth" not in st.session_state: st.session_state["auth"] = False
 if "is_admin" not in st.session_state: st.session_state["is_admin"] = False
 
+if not st.session_state["auth"]:
+    st.title("🚓 Login")
+    pw = st.text_input("Passwort", type="password")
+    if st.button("Starten"):
+        if pw == DIENST_PW:
+            st.session_state["auth"] = True
+            st.rerun()
+    st.stop()
+
+# --- SIDEBAR ---
 with st.sidebar:
-    st.header("🔐 Zugang")
-    if not st.session_state["auth"]:
-        if st.text_input("Dienst-Passwort", type="password") == DIENST_PW:
-            if st.button("Einloggen"): st.session_state["auth"] = True; st
+    st.write("### Admin")
+    a_pw = st.text_input("Admin-Key", type="password")
+    if a_pw == ADMIN_PW: st.session_state["is_admin"] = True
+    if st.button("Abmelden"):
+        st.session_state.clear()
+        st.rerun()
+
+# --- HAUPTTEIL ---
+st.markdown("<div class='main-title'>📋 Einsatzbericht</div>", unsafe_allow_html=True)
+daten = lade_daten()
+
+with st.expander("➕ NEUER BERICHT", expanded=True):
+    with st.form("f"):
+        c1, c2, c3 = st.columns(3)
+        d = c1.date_input("Datum")
+        bs = c2.time_input("Beginn")
+        be = c3.time_input("Ende")
+        
+        o1, o2, o3 = st.columns([3,1,2])
+        ort = o1.selectbox("Ort", options=STRASSEN_AUGSBURG, index=None)
+        if not ort: ort = o1.text_input("Manueller Ort")
+        hsnr = o2.text_input("Nr.")
+        az = o3.text_input("AZ")
+        
+        zeuge = st.text_input("Beteiligte")
+        dk = st.text_input("Kürzel DK")
+        txt = st.text_area("Bericht", height=150)
+        foto = st.file_uploader("Foto", type=['jpg','png','jpeg'])
+        
+        if st.form_submit_button("SPEICHERN"):
+            f_b64 = bild_zu_base64(foto)
+            new = pd.DataFrame([[str(d), bs.strftime("%H:%M"), be.strftime("%H:%M"), str(ort), str(hsnr), str(zeuge), str(txt), str(az), f_b64, str(dk)]], columns=daten.columns)
+            pd.concat([daten, new], ignore_index=True).to_csv(DATEI, index=False)
+            st.success("Gespeichert!"); st.rerun()
+
+# --- ARCHIV ---
+st.subheader("📂 Archiv")
+for i, row in daten.iloc[::-1].iterrows():
+    st.markdown(f"<div class='einsatz-card'><b>{row['Ort']} {row['Hausnummer']}</b><br>{row['Datum']} | {row['Beginn']}-{row['Ende']}</div>", unsafe_allow_html=True)
+    with st.expander("Ansehen"):
+        st.write(row['Bericht'])
+        if row['Foto'] != "-":
+            st.image(base64.b64decode(row['Foto']), width=300)
+        if st.session_state["is_admin"]:
+            st.download_button("📄 PDF", data=erstelle_pdf(row), file_name=f"Bericht_{i}.pdf", key=f"p{i}")
