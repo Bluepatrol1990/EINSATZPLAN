@@ -6,6 +6,7 @@ from fpdf import FPDF
 import io
 import base64
 from PIL import Image
+import tempfile
 
 # --- GRUNDEINSTELLUNGEN ---
 st.set_page_config(page_title="OA Einsatzbericht", page_icon="🚓", layout="wide")
@@ -27,13 +28,11 @@ ADMIN_PW = "admin789"
 DATEI = "zentral_archiv.csv"
 STRASSEN_AUGSBURG = sorted(["Maximilianstraße", "Königsplatz", "Rathausplatz", "Moritzplatz", "Ulrichsplatz", "Annastraße", "Bahnhofstraße", "Hermanstraße", "Karlstraße", "Grottenau", "Fuggerstraße", "Konrad-Adenauer-Allee", "Elias-Holl-Platz", "Haunstetter Straße", "Gögginger Straße", "Friedberger Straße", "Berliner Allee", "Bgm.-Ackermann-Straße", "Donauwörther Straße", "Ulmer Straße", "Hirblinger Straße", "Lechhauser Straße", "Neuburger Straße", "Viktoriastraße"])
 
-# --- PDF PROFI-FUNKTION ---
+# --- PDF PROFI-FUNKTION MIT BILD-SUPPORT ---
 class BehoerdenPDF(FPDF):
     def header(self):
-        # Logo (falls logo.png im Ordner existiert)
         if os.path.exists("logo.png"):
             self.image("logo.png", 160, 10, 35)
-        
         self.set_font("Arial", "B", 14)
         self.set_text_color(0, 75, 149)
         self.cell(0, 10, "STADT AUGSBURG", ln=True)
@@ -47,65 +46,63 @@ class BehoerdenPDF(FPDF):
         self.set_y(-25)
         self.set_font("Arial", "I", 8)
         self.set_text_color(128, 128, 128)
-        self.cell(0, 10, f"Seite {self.page_no()} | Automatisch generierter Einsatzbericht | Vertrauliche Dienstsache", align="C")
+        self.cell(0, 10, f"Seite {self.page_no()} | Amtliches Dokument | Vertraulich", align="C")
 
 def erstelle_profi_pdf(row):
     pdf = BehoerdenPDF()
     pdf.add_page()
     
-    # Titel
+    # Header & Stammdaten
     pdf.set_font("Arial", "B", 16)
     pdf.set_text_color(0, 0, 0)
-    pdf.cell(0, 15, f"EINSATZPROTOKOLL - AZ: {row['AZ']}", ln=True, align="L")
+    pdf.cell(0, 15, f"EINSATZPROTOKOLL - AZ: {row['AZ']}", ln=True)
     pdf.ln(5)
 
-    # Stammdaten-Tabelle
     pdf.set_fill_color(240, 240, 240)
     pdf.set_font("Arial", "B", 10)
     
-    data = [
-        ["Datum:", row['Datum'], "Dienstkraft:", row['Dienstkraft']],
-        ["Beginn:", row['Beginn'], "Ende:", row['Ende']],
-        ["Ort:", f"{row['Ort']} {row['Hausnummer']}", "", ""]
-    ]
+    # Tabelle für Details
+    pdf.cell(30, 8, "Datum:", 1, 0, "L", True); pdf.set_font("Arial", "", 10); pdf.cell(65, 8, str(row['Datum']), 1)
+    pdf.set_font("Arial", "B", 10); pdf.cell(30, 8, "Dienstkraft:", 1, 0, "L", True); pdf.set_font("Arial", "", 10); pdf.cell(65, 8, str(row['Dienstkraft']), 1, 1)
     
-    for r in data:
-        pdf.cell(30, 8, r[0], 1, 0, "L", True)
-        pdf.set_font("Arial", "", 10)
-        pdf.cell(65, 8, str(r[1]), 1)
-        pdf.set_font("Arial", "B", 10)
-        pdf.cell(30, 8, r[2], 1, 0, "L", True)
-        pdf.set_font("Arial", "", 10)
-        pdf.cell(65, 8, str(r[3]), 1)
-        pdf.ln()
-
-    pdf.ln(10)
+    pdf.set_font("Arial", "B", 10); pdf.cell(30, 8, "Beginn:", 1, 0, "L", True); pdf.set_font("Arial", "", 10); pdf.cell(65, 8, str(row['Beginn']), 1)
+    pdf.set_font("Arial", "B", 10); pdf.cell(30, 8, "Ende:", 1, 0, "L", True); pdf.set_font("Arial", "", 10); pdf.cell(65, 8, str(row['Ende']), 1, 1)
     
-    # Zeugen / Beteiligte
-    pdf.set_font("Arial", "B", 11)
-    pdf.cell(0, 10, "Beteiligte Personen / Zeugen:", ln=True)
-    pdf.set_font("Arial", "", 10)
-    pdf.multi_cell(0, 7, str(row['Zeugen']), border="B")
+    pdf.set_font("Arial", "B", 10); pdf.cell(30, 8, "Ort:", 1, 0, "L", True); pdf.set_font("Arial", "", 10); pdf.cell(160, 8, f"{row['Ort']} {row['Hausnummer']}", 1, 1)
+    
     pdf.ln(5)
-
-    # Sachverhalt
     pdf.set_font("Arial", "B", 11)
-    pdf.cell(0, 10, "Sachverhalt / Feststellungen:", ln=True)
+    pdf.cell(0, 8, "Beteiligte Personen / Zeugen:", ln=True)
+    pdf.set_font("Arial", "", 10)
+    pdf.multi_cell(0, 6, str(row['Zeugen']), border=1)
+    
+    pdf.ln(5)
+    pdf.set_font("Arial", "B", 11)
+    pdf.cell(0, 8, "Sachverhalt / Feststellungen:", ln=True)
     pdf.set_font("Arial", "", 10)
     bericht_clean = str(row['Bericht']).encode('latin-1', 'ignore').decode('latin-1')
-    pdf.multi_cell(0, 7, bericht_clean)
-    
-    # Abschluss
-    pdf.ln(20)
-    pdf.set_font("Arial", "I", 9)
-    pdf.cell(95, 10, "__________________________", 0, 0)
-    pdf.cell(95, 10, "__________________________", 0, 1)
-    pdf.cell(95, 5, "Datum, Ort", 0, 0)
-    pdf.cell(95, 5, "Unterschrift Dienstkraft", 0, 1)
+    pdf.multi_cell(0, 6, bericht_clean, border=1)
+
+    # --- BILD INTEGRATION ---
+    if row['Foto'] != "-":
+        pdf.add_page()
+        pdf.set_font("Arial", "B", 12)
+        pdf.cell(0, 10, "FOTODOKUMENTATION / BEWEISSICHERUNG", ln=True, align="C")
+        pdf.ln(5)
+        
+        # Temporäres Bild erstellen
+        img_data = base64.b64decode(row['Foto'])
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
+            tmp.write(img_data)
+            tmp_path = tmp.name
+        
+        # Bild im PDF platzieren (zentriert, max Breite 180mm)
+        pdf.image(tmp_path, x=15, y=30, w=180)
+        os.unlink(tmp_path) # Temp Datei löschen
 
     return pdf.output(dest='S').encode('latin-1')
 
-# --- LOGIK (Rest wie vorher) ---
+# --- LOGIK ---
 def lade_daten():
     spalten = ["Datum", "Beginn", "Ende", "Ort", "Hausnummer", "Zeugen", "Bericht", "AZ", "Foto", "Dienstkraft"]
     if os.path.exists(DATEI):
@@ -139,6 +136,7 @@ with st.sidebar:
 st.markdown("<div class='main-title'>📋 Einsatzbericht</div>", unsafe_allow_html=True)
 daten = lade_daten()
 
+# Formular
 with st.expander("➕ NEUEN BERICHT SCHREIBEN", expanded=True):
     with st.form("e_form", clear_on_submit=True):
         c1, c2, c3 = st.columns(3)
@@ -150,10 +148,10 @@ with st.expander("➕ NEUEN BERICHT SCHREIBEN", expanded=True):
         if not ort: ort = o1.text_input("Manueller Ort")
         hsnr = o2.text_input("Hausnr.")
         az = o3.text_input("AZ")
-        z = st.text_input("Beteiligte")
+        z = st.text_input("Beteiligte / Zeugen")
         dk = st.text_input("Dienstkraft")
         txt = st.text_area("Bericht", height=150)
-        f = st.file_uploader("Foto", type=['jpg','png','jpeg'])
+        f = st.file_uploader("📸 Foto hochladen", type=['jpg','png','jpeg'])
         if st.form_submit_button("🚀 SPEICHERN"):
             if txt:
                 f_b = bild_zu_base64(f)
@@ -163,9 +161,10 @@ with st.expander("➕ NEUEN BERICHT SCHREIBEN", expanded=True):
 
 st.divider()
 for i, row in daten.iloc[::-1].iterrows():
-    st.markdown(f"<div class='einsatz-card'><b>📍 {row['Ort']} {row['Hausnummer']}</b><br>{row['Datum']} | AZ: {row['AZ']}</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='einsatz-card'><b>📍 {row['Ort']} {row['Hausnummer']}</b><br>{row['Datum']} | {row['Beginn']}-{row['Ende']} | AZ: {row['AZ']}</div>", unsafe_allow_html=True)
     with st.expander("Details"):
+        st.write(f"**Zeugen:** {row['Zeugen']}")
         st.info(row['Bericht'])
         if row['Foto'] != "-": st.image(base64.b64decode(row['Foto']), width=400)
         if st.session_state["is_admin"]:
-            st.download_button("📄 PDF Behörden-Export", data=erstelle_profi_pdf(row), file_name=f"Einsatz_{row['AZ']}.pdf", key=f"pdf_{i}")
+            st.download_button("📄 PDF mit Beweisfoto exportieren", data=erstelle_profi_pdf(row), file_name=f"Bericht_{row['AZ']}.pdf", key=f"pdf_{i}")
