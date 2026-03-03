@@ -1,3 +1,6 @@
+streamlit
 pandas
 fpdf
-st-gsheets-connection
+Pillow
+cryptography
+streamlit-js-eval
