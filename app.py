@@ -5,7 +5,7 @@ from datetime import datetime
 from fpdf import FPDF
 import io
 import base64
-from PIL import Image
+from PIL import Image, ImageOps
 import tempfile
 from cryptography.fernet import Fernet
 from streamlit_js_eval import get_geolocation
@@ -42,7 +42,7 @@ def entschluesseln(safe_text):
     except:
         return "[Entschlüsselungsfehler]"
 
-# --- 4. DATEN & STRASSEN AUGSBURG ---
+# --- 4. DATEN & STRASSEN ---
 DATEI = "zentral_archiv_secure.csv"
 STRASSEN_AUGSBURG = sorted([
     "Maximilianstraße", "Königsplatz", "Rathausplatz", "Moritzplatz", "Ulrichsplatz", 
@@ -65,133 +65,104 @@ BAUSTEINE = {
 # --- 5. AMTKLICHER PDF GENERATOR ---
 class BehoerdenPDF(FPDF):
     def header(self):
-        # Logo (Falls vorhanden: logo.png im Hauptverzeichnis auf GitHub hochladen)
         if os.path.exists("logo.png"):
             self.image("logo.png", 10, 8, 30)
         else:
             self.set_font("Arial", "B", 10)
             self.set_text_color(150, 150, 150)
-            self.cell(30, 10, "[STADTWAPPEN]", ln=False)
-            self.set_text_color(0, 0, 0) # Reset
+            self.cell(30, 10, "STADTWAPPEN", ln=False)
         
-        # Behördenkopf (Rechts daneben)
         self.set_font("Arial", "B", 16)
-        self.set_text_color(0, 75, 149) # Augsburger Behördenblau
+        self.set_text_color(0, 75, 149) 
         self.set_x(50)
         self.cell(0, 10, "STADT AUGSBURG", ln=True)
-        
         self.set_font("Arial", "", 12)
         self.set_x(50)
-        self.cell(0, 7, "Ordnungsamt", ln=True)
-        self.set_x(50)
-        self.cell(0, 7, "Kommunaler Ordnungsdienst (KOD)", ln=True)
-        
+        self.cell(0, 7, "Ordnungsamt | Kommunaler Ordnungsdienst", ln=True)
         self.ln(10)
-        self.line(10, 45, 200, 45) # Trennlinie
+        self.line(10, 42, 200, 42)
 
     def footer(self):
-        # Seitenzahl und Info unten
         self.set_y(-15)
         self.set_font("Arial", "I", 8)
         self.set_text_color(100, 100, 100)
-        titel = "Amtliches Einsatzprotokoll | KOD Augsburg"
-        self.cell(0, 10, f"{titel} | Seite {self.page_no()}/{{nb}}", align="C")
+        self.cell(0, 10, f"Einsatzprotokoll KOD Augsburg | Seite {self.page_no()}/{{nb}}", align="C")
 
 def erstelle_pdf(row):
     pdf = BehoerdenPDF()
     pdf.alias_nb_pages()
     pdf.add_page()
     
-    # --- Betreff-Bereich ---
     pdf.ln(5)
     pdf.set_font("Arial", "B", 14)
     pdf.cell(0, 10, f"Einsatzprotokoll | AZ: {row['AZ']}", ln=True)
-    pdf.ln(8)
+    pdf.ln(5)
     
-    # --- Fakten-Block (Kompakt) ---
+    # Fakten-Tabelle
     pdf.set_font("Arial", "B", 10)
-    pdf.set_fill_color(240, 240, 240) # Hellgrauer Hintergrund
+    pdf.set_fill_color(245, 245, 245)
     
-    c_w = 40 # Label Breite
+    fields = [
+        ("Datum / Zeit:", f"{row['Datum']} | {row['Beginn']} - {row['Ende']}"),
+        ("Einsatzort:", f"{row['Ort']} {row['Hausnummer']}"),
+        ("Kräfte:", row['Kraefte']),
+        ("Beteiligte:", row['Zeugen']),
+        ("GPS:", row['GPS'])
+    ]
     
-    pdf.cell(c_w, 7, " Datum / Zeit:", fill=True)
-    pdf.set_font("Arial", "", 10)
-    pdf.cell(0, 7, f" {row['Datum']} | {row['Beginn']} - {row['Ende']}", ln=True, fill=True)
-    
-    pdf.set_font("Arial", "B", 10)
-    pdf.cell(c_w, 7, " Einsatzort:", fill=True)
-    pdf.set_font("Arial", "", 10)
-    pdf.cell(0, 7, f" {row['Ort']} {row['Hausnummer']}", ln=True, fill=True)
-    
-    pdf.set_font("Arial", "B", 10)
-    pdf.cell(c_w, 7, " Kräfte vor Ort:", fill=True)
-    pdf.set_font("Arial", "", 10)
-    pdf.cell(0, 7, f" {row['Kraefte']}", ln=True, fill=True)
-    
-    pdf.set_font("Arial", "B", 10)
-    pdf.cell(c_w, 7, " Beteiligte / Zeugen:", fill=True)
-    pdf.set_font("Arial", "", 10)
-    pdf.cell(0, 7, f" {row['Zeugen']}", ln=True, fill=True)
-    
-    pdf.set_font("Arial", "B", 10)
-    pdf.cell(c_w, 7, " GPS Koordinate:", fill=True)
-    pdf.set_font("Arial", "", 10)
-    pdf.cell(0, 7, f" {row['GPS']}", ln=True, fill=True)
+    for label, val in fields:
+        pdf.set_font("Arial", "B", 10)
+        pdf.cell(40, 7, f" {label}", fill=True)
+        pdf.set_font("Arial", "", 10)
+        pdf.cell(0, 7, f" {val}", ln=True, fill=True)
     
     pdf.ln(10)
-    
-    # --- Sachverhalt ---
     pdf.set_font("Arial", "B", 12)
-    pdf.cell(0, 10, "Sachverhalt / Bericht:", ln=True)
-    
-    pdf.set_font("Arial", "", 10)
+    pdf.cell(0, 10, "Sachverhalt:", ln=True)
+    pdf.set_font("Arial", "", 11)
     pdf.multi_cell(0, 6, row['Bericht'])
-    pdf.ln(10)
     
-    # --- FOTO-BEREICH (In Rahmen koprimiert) ---
+    # --- OPTIMIERTES BILD-HANDLING ---
     if row['Foto'] != "-":
+        pdf.add_page() # Bilder auf neue Seite für bessere Übersicht
         pdf.set_font("Arial", "B", 12)
-        pdf.cell(0, 10, "Fotodokumentation / Beweismittel:", ln=True)
+        pdf.cell(0, 10, "Fotodokumentation / Beweismittel", ln=True)
         pdf.ln(5)
         
         try:
-            # Bild laden
             img_bytes = base64.b64decode(row['Foto'])
             img = Image.open(io.BytesIO(img_bytes))
             
-            # Bild temporär speichern
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp_file:
-                img.save(tmp_file.name, format="JPEG")
-                tmp_filename = tmp_file.name
+            # Auto-Orientierung (Handy-Rotation korrigieren)
+            img = ImageOps.exif_transpose(img)
+            
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
+                img.save(tmp.name, format="JPEG", quality=85)
                 
-            # WICHTIG: Rahmen zeichnen (Amtliches Blau)
-            pdf.set_draw_color(0, 75, 149) # Blau
-            pdf.set_line_width(1)
-            # Rahmenkoordinaten (Etwas größer als das Bild)
-            r_x = 12; r_y = pdf.get_y() - 2; r_w = 84; r_h = 64
-            pdf.rect(r_x, r_y, r_w, r_h) 
+                # Bildgröße berechnen (Max Breite 180mm)
+                w, h = img.size
+                aspect = h / w
+                pdf_w = 170
+                pdf_h = pdf_w * aspect
+                
+                # Falls Bild zu hoch für Seite, verkleinern
+                if pdf_h > 220:
+                    pdf_h = 220
+                    pdf_w = pdf_h / aspect
+                
+                # Zentriert platzieren mit Rahmen
+                x_pos = (210 - pdf_w) / 2
+                pdf.set_draw_color(0, 75, 149)
+                pdf.rect(x_pos - 1, pdf.get_y() - 1, pdf_w + 2, pdf_h + 2)
+                pdf.image(tmp.name, x_pos, pdf.get_y(), pdf_w, pdf_h)
+                
+                os.unlink(tmp.name)
+        except:
+            pdf.cell(0, 10, "[Bild konnte nicht geladen werden]", ln=True)
             
-            # Bild einfügen (Skaliert in den Rahmen, koprimiert)
-            pdf.image(tmp_filename, r_x + 2, r_y + 2, 80, 60)
-            os.unlink(tmp_filename) # Temporäre Datei löschen
-            
-        except Exception as e:
-            pdf.set_text_color(255, 0, 0)
-            pdf.cell(0, 10, f"Fehler bei Bilddarstellung: {str(e)}", ln=True)
-            pdf.set_text_color(0, 0, 0)
-    
-    # --- Unterschriften-Feld ---
-    pdf.ln(20)
-    pdf.set_font("Arial", "B", 10)
-    pdf.cell(90, 10, ".....................................................", ln=False)
-    pdf.cell(0, 10, ".....................................................", ln=True)
-    pdf.set_font("Arial", "", 8)
-    pdf.cell(90, 5, "Datum, Unterschrift Dienstkraft", ln=False)
-    pdf.cell(0, 5, "Unterschrift Kevin Wölki", ln=True)
-    
     return pdf.output(dest='S').encode('latin-1')
 
-# --- 6. DIENST LOGIN ---
+# --- 6. LOGIN & MAIN ---
 if not st.session_state["auth"]:
     st.markdown("<h1 style='text-align: center;'>🚓 Dienst Login</h1>", unsafe_allow_html=True)
     c1, c2, c3 = st.columns([1,2,1])
@@ -201,33 +172,23 @@ if not st.session_state["auth"]:
             if pw == DIENST_PW:
                 st.session_state["auth"] = True
                 st.rerun()
-            else:
-                st.error("Falsches Passwort")
     st.stop()
 
-# --- 7. ADMIN BEREICH (Sidebar) ---
+# Sidebar
 with st.sidebar:
-    st.header("⚙️ Verwaltung")
+    st.header("⚙️ Admin")
     if not st.session_state["admin_auth"]:
-        admin_input = st.text_input("Admin-Passwort", type="password")
-        if st.button("Admin Login"):
-            if admin_input == ADMIN_PW:
-                st.session_state["admin_auth"] = True
-                st.success("Admin-Modus aktiv!")
-                st.rerun()
-            else:
-                st.error("Falsches Passwort")
+        if st.text_input("Passwort", type="password") == ADMIN_PW:
+            st.session_state["admin_auth"] = True
+            st.rerun()
     else:
-        st.success("✅ Admin-Status aktiv")
-        if st.button("Admin Logout"):
+        st.success("Admin aktiv")
+        if st.button("Logout"):
             st.session_state["admin_auth"] = False
             st.rerun()
-    st.divider()
-    st.info("Empfänger: Kevin.woelki@augsburg.de\nkevinworlki@outlook.de")
 
-# --- 8. HAUPTSEITE ---
+# --- Hauptformular & Archiv ---
 st.title("📋 Einsatzbericht")
-
 loc = get_geolocation()
 gps_ready = f"{loc['coords']['latitude']}, {loc['coords']['longitude']}" if loc else "-"
 
@@ -244,73 +205,57 @@ def lade_daten():
 
 daten = lade_daten()
 
-# --- FORMULAR ---
-with st.expander("➕ NEUEN BERICHT SCHREIBEN", expanded=True):
+with st.expander("➕ NEUER BERICHT", expanded=True):
     with st.form("main_form", clear_on_submit=True):
-        c1, c2, c3, c4 = st.columns([1,1,1,1])
+        c1, c2, c3, c4 = st.columns(4)
         d = c1.date_input("Datum")
-        t_start = c2.time_input("Beginn")
-        t_ende = c3.time_input("Ende")
-        gps_val = c4.text_input("📍 GPS", value=gps_ready, disabled=True)
+        t1 = c2.time_input("Beginn")
+        t2 = c3.time_input("Ende")
+        gps = c4.text_input("GPS", value=gps_ready, disabled=True)
         
         o1, o2, o3 = st.columns([3,1,2])
-        ort_wahl = o1.selectbox("Straße / Ort (Augsburg)", options=STRASSEN_AUGSBURG, index=None, placeholder="Straße wählen...")
-        hsnr = o2.text_input("Nr.")
+        ort = o1.selectbox("Ort", STRASSEN_AUGSBURG, index=None)
+        nr = o2.text_input("Nr.")
         az = o3.text_input("AZ")
-
-        st.write("**🚓 Eingesetzte Kräfte vor Ort:**")
+        
+        st.write("Kräfte:")
         ck1, ck2, ck3 = st.columns(3)
-        pol_check = ck1.checkbox("Polizei")
-        funkstreife = ck1.text_input("Funkstreife", placeholder="z.B. Aux 12/1") if pol_check else ""
-        rtw_check = ck2.checkbox("RTW")
-        fw_check = ck3.checkbox("Feuerwehr")
+        p_on = ck1.checkbox("Polizei")
+        funk = ck1.text_input("Funkstreife") if p_on else ""
+        r_on = ck2.checkbox("RTW")
+        f_on = ck3.checkbox("Feuerwehr")
         
-        kraefte_liste = []
-        if pol_check: kraefte_liste.append(f"Polizei ({funkstreife})")
-        if rtw_check: kraefte_liste.append("RTW")
-        if fw_check: kraefte_liste.append("Feuerwehr")
-        kraefte_str = ", ".join(kraefte_liste) if kraefte_liste else "Keine"
-
-        st.divider()
-        auswahl = st.selectbox("⚡ Textbaustein", options=list(BAUSTEINE.keys()))
-        bericht = st.text_area("Sachverhalt", value=BAUSTEINE[auswahl] if auswahl != "Auswählen..." else "", height=150)
-        z = st.text_input("Beteiligte Personen / Zeugen")
-        dk = st.text_input("DK Kürzel")
-        f = st.file_uploader("📸 Foto hochladen")
+        k_list = []
+        if p_on: k_list.append(f"Polizei ({funk})")
+        if r_on: k_list.append("RTW")
+        if f_on: k_list.append("Feuerwehr")
+        k_str = ", ".join(k_list) if k_list else "Keine"
         
-        if st.form_submit_button("🔒 VERSCHLÜSSELT SPEICHERN"):
-            if bericht and ort_wahl:
-                f_b = "-"
-                if f:
-                    img = Image.open(f)
-                    if img.mode in ("RGBA", "P"): img = img.convert("RGB")
-                    # Automatische Komprimierung (thumbnail)
-                    img.thumbnail((800, 800))
-                    buf = io.BytesIO()
-                    img.save(buf, format="JPEG", quality=75)
-                    f_b = base64.b64encode(buf.getvalue()).decode()
-                
-                new_row = [str(d), t_start.strftime("%H:%M"), t_ende.strftime("%H:%M"), 
-                           str(ort_wahl), hsnr, verschluesseln(z), verschluesseln(bericht), 
-                           az, verschluesseln(f_b), dk, gps_ready, verschluesseln(kraefte_str)]
-                
-                new_df = pd.DataFrame([new_row], columns=daten.columns)
-                pd.concat([pd.read_csv(DATEI) if os.path.exists(DATEI) else pd.DataFrame(columns=daten.columns), new_df]).to_csv(DATEI, index=False)
-                st.success("Bericht wurde sicher gespeichert!"); st.rerun()
+        bericht = st.text_area("Bericht")
+        z = st.text_input("Zeugen")
+        f = st.file_uploader("Foto")
+        
+        if st.form_submit_button("Speichern"):
+            f_b = "-"
+            if f:
+                img = Image.open(f)
+                img = ImageOps.exif_transpose(img) # WICHTIG: Korrigiert Handy-Rotation
+                img.thumbnail((1000, 1000))
+                buf = io.BytesIO()
+                img.save(buf, format="JPEG", quality=75)
+                f_b = base64.b64encode(buf.getvalue()).decode()
+            
+            new_row = [str(d), t1.strftime("%H:%M"), t2.strftime("%H:%M"), str(ort), nr, verschluesseln(z), 
+                       verschluesseln(bericht), az, verschluesseln(f_b), "KOD", gps_ready, verschluesseln(k_str)]
+            pd.concat([pd.read_csv(DATEI) if os.path.exists(DATEI) else pd.DataFrame(columns=daten.columns), 
+                       pd.DataFrame([new_row], columns=daten.columns)]).to_csv(DATEI, index=False)
+            st.rerun()
 
-# --- ARCHIV ---
 st.divider()
-st.subheader("📂 Verschlüsseltes Archiv")
 for i, row in daten.iloc[::-1].iterrows():
-    with st.expander(f"📍 {row['Ort']} | {row['Datum']} | AZ: {row['AZ']}"):
-        c_arch1, c_arch2, c_arch3 = st.columns(3)
-        c_arch1.write(f"**⏱ Zeitraum:** {row['Beginn']} - {row['Ende']}")
-        c_arch2.write(f"**🚓 Kräfte:** {row['Kraefte']}")
-        c_arch3.write(f"**👥 Beteiligte:** {row['Zeugen']}")
+    with st.expander(f"{row['Ort']} | {row['Datum']}"):
+        st.write(f"Zeit: {row['Beginn']}-{row['Ende']} | Kräfte: {row['Kraefte']}")
         st.info(row['Bericht'])
-        if row['Foto'] != "-":
-            st.image(base64.b64decode(row['Foto']), width=300)
-        
+        if row['Foto'] != "-": st.image(base64.b64decode(row['Foto']), width=300)
         if st.session_state["admin_auth"]:
-            # PDF Export (Amtlicher Look)
-            st.download_button("📄 Amtliches PDF", data=erstelle_pdf(row), file_name=f"Bericht_{row['AZ']}.pdf", key=f"pdf_{i}")
+            st.download_button("PDF Export", data=erstelle_pdf(row), file_name=f"{row['AZ']}.pdf", key=f"p{i}")
