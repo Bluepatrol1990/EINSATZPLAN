@@ -2,33 +2,40 @@ import streamlit as st
 import urllib.parse
 from datetime import datetime
 
-# 1. Grundkonfiguration
+# 1. Grundkonfiguration & Design (Augsburg Blau)
 st.set_page_config(page_title="Einsatzprotokoll Augsburg", layout="centered")
 
-# CSS für das Augsburg-Design (Blau-Töne)
 st.markdown("""
     <style>
     .stApp { background-color: #f4f4f4; }
-    h1 { color: #0054a6; border-bottom: 2px solid #0054a6; }
-    .stButton>button { background-color: #0054a6; color: white; width: 100%; border-radius: 8px; height: 3em; font-weight: bold; }
+    h1 { color: #0054a6; border-bottom: 3px solid #0054a6; padding-bottom: 10px; }
+    .stTabs [data-baseweb="tab-list"] { gap: 10px; }
+    .stTabs [data-baseweb="tab"] { 
+        background-color: #e7eff6; 
+        border-radius: 4px 4px 0 0; 
+        padding: 10px;
+    }
+    .stTabs [aria-selected="true"] { background-color: #0054a6 !important; color: white !important; }
     </style>
     """, unsafe_allow_html=True)
 
 st.title("📋 Einsatzprotokoll")
 st.write("**Landeshauptstadt Augsburg - Ordnungsdienst**")
 
-# 2. Gespeicherte Empfänger (wie gewünscht)
+# 2. Empfänger (Kevin Woelki)
 RECIPIENTS = "Kevin.woelki@augsburg.de; kevinworlki@outlook.de"
 
-# 3. Reiter-Struktur (Tabs)
-tab1, tab2 = st.tabs(["📍 Basis-Infos", "📝 Feststellungen"])
+# 3. Reiter-Struktur (Wie gewünscht)
+tab1, tab2, tab3 = st.tabs(["📍 Basis-Infos", "📝 Feststellungen", "📸 Fotos"])
 
 with tab1:
-    standort = st.text_input("Standort / Örtlichkeit", placeholder="z.B. Königsplatz, Rathausplatz...")
-    zeitpunkt = st.text_input("Datum/Uhrzeit", value=datetime.now().strftime("%d.%m.%Y, %H:%M Uhr"))
-    st.info(f"Bericht geht an: {RECIPIENTS}")
+    st.subheader("Allgemeine Angaben")
+    standort = st.text_input("Standort / Örtlichkeit", placeholder="z.B. Königsplatz, Kuhsee...")
+    datum_uhrzeit = st.text_input("Datum / Uhrzeit", value=datetime.now().strftime("%d.%m.%Y, %H:%M"))
+    st.info(f"Empfänger: {RECIPIENTS}")
 
 with tab2:
+    st.subheader("Feststellung auswählen")
     feststellungen_liste = [
         "-- Bitte wählen --", "§ 111 OWiG", "§ 118 OWiG Belästigung der Allgemeinheit", 
         "Alkoholgenuss auf Spielplätzen", "Alkoholgenuss außerhalb zugelassener Freischankflächen", 
@@ -83,34 +90,37 @@ with tab2:
         "Wegwerfen oder Liegenlassen von Abfällen", "Wegwerfen oder Liegenlassen von Zigarettenkippe", 
         "X Personen an der Örtlichkeit, keine Beanstandungen", "Zugspitzstraße 104 (Neuer Ostfriedhof)"
     ]
-    
-    feststellung = st.selectbox("Feststellung auswählen", feststellungen_liste)
-    details = st.text_area("Weitere Details / Sachverhalt")
+    feststellung = st.selectbox("Feststellung", feststellungen_liste)
+    details = st.text_area("Zusätzliche Details / Sachverhalt")
 
-# 4. E-Mail Versand Button
+with tab3:
+    st.subheader("Fotodokumentation")
+    foto = st.camera_input("Foto aufnehmen")
+    if foto:
+        st.success("Foto wurde erfasst!")
+
+# 4. Versand-Logik
 st.markdown("---")
-if st.button("📧 E-Mail Entwurf erstellen"):
+if st.button("📧 E-Mail Entwurf generieren"):
     if not standort or feststellung == "-- Bitte wählen --":
-        st.error("Bitte mindestens Standort und eine Feststellung angeben!")
+        st.warning("Bitte Standort und Feststellung ausfüllen!")
     else:
         subject = f"Einsatzbericht: {standort}"
-        body_text = (
-            f"Guten Tag,\n\nanbei ein neuer Einsatzbericht:\n\n"
+        body = (
+            f"Einsatzbericht Stadt Augsburg\n"
+            f"---------------------------\n"
             f"STANDORT: {standort}\n"
-            f"ZEITPUNKT: {zeitpunkt}\n"
+            f"ZEITPUNKT: {datum_uhrzeit}\n"
             f"FESTSTELLUNG: {feststellung}\n"
-            f"DETAILS: {details}\n\n"
-            f"Mit freundlichen Grüßen\nEinsatzdienst Augsburg"
+            f"DETAILS: {details}\n"
         )
         
-        # Encoding für den E-Mail Link
-        mailto_link = f"mailto:{RECIPIENTS}?subject={urllib.parse.quote(subject)}&body={urllib.parse.quote(body_text)}"
+        mailto_link = f"mailto:{RECIPIENTS}?subject={urllib.parse.quote(subject)}&body={urllib.parse.quote(body)}"
         
-        # Button zum Öffnen der Mail-App
         st.markdown(f'''
-            <a href="{mailto_link}" target="_blank">
-                <div style="text-align: center; background-color: #28a745; color: white; padding: 15px; border-radius: 8px; font-weight: bold; text-decoration: none;">
-                    KLICKEN: E-Mail jetzt öffnen
+            <a href="{mailto_link}" target="_blank" style="text-decoration: none;">
+                <div style="background-color: #28a745; color: white; padding: 15px; border-radius: 8px; text-align: center; font-weight: bold;">
+                    JETZT SENDEN (E-Mail App öffnen)
                 </div>
             </a>
             ''', unsafe_allow_html=True)
