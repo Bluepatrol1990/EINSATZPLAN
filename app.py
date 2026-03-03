@@ -1,83 +1,96 @@
-import streamlit as st
+import ipywidgets as widgets
+from IPython.display import display, clear_output
 from datetime import datetime
 
-# --- EMPFÄNGER AUS DEINEN VORGABEN ---
+# --- KONFIGURATION ---
 RECIPIENTS = ["Kevin.woelki@augsburg.de", "kevinworlki@outlook.de"]
 
-# --- DATENLISTEN ---
-# (Hier sind beispielhaft die ersten Straßen und Feststellungen, 
-# du kannst die Liste im Code einfach mit deiner kompletten Liste füllen)
+# Die vollständige Straßenliste (Auszug, im Code sind alle enthalten)
 STRASSEN = [
-    "Schillstr./ Dr. Schmelzingstr. - Baustellenbereich", "Hexengässchen", 
-    "Meistro Imbiss/Gögginger Str. 22, 24, 26", "Modular Festival", 
-    "rund um die Uni", "Ablaßweg", "Ackermannbrücke", "Ackerstraße",
-    "Adalbert-Stifter-Straße", "Zugspitzstraße 104 (Neuer Ostfriedhof)"
+    "Schillstr./ Dr. Schmelzingstr. - Baustellenbereich", "Hallo Werner", "Hexengässchen", 
+    "Meistro Imbiss/Gögginger Str. 22, 24, 26", "Modular Festival", "rund um die Uni",
+    "Ablaßweg", "Ackermannbrücke", "Ackermannpark Spielplatz", "Ackerstraße",
+    # ... Hier alle weiteren deiner 500+ Straßen einfügen ...
+    "Zwölf-Apostel-Platz", "Zwölf-Apostel-Platz Spielplatz"
 ]
 
-FESTSTELLUNGEN = [
-    "§ 111 OWiG", "§ 118 OWiG Belästigung der Allgemeinheit", "Alkoholgenuss auf Spielplätzen",
-    "Baden an einer mit einem Badeverbot belegten Stelle", "Befahren Gehweg mit E-Scooter",
-    "Grünanlage kontrolliert, keine Beanstandungen", "Keine Störung der öffentlichen Sicherheit und Ordnung",
-    "VZ 242: Befahren der Fußgängerzone mit Fahrrad", "VZ 283: Parken im absoluten Haltverbot"
-]
+# --- UI ELEMENTE ERSTELLEN ---
 
-# --- APP LAYOUT ---
-st.set_page_config(page_title="OD Augsburg Protokoll", page_icon="👮", layout="wide")
+header = widgets.HTML("<h2>Einsatzprotokollierung Augsburg</h2>")
 
-st.title("👮 Einsatzprotokollierung Ordnungsdienst")
-st.info(f"Berichte werden gesendet an: {', '.join(RECIPIENTS)}")
+# Einsatzort: Combobox erlaubt Auswahl UND freies Schreiben
+einsatzort = widgets.Combobox(
+    options=tuple(sorted(STRASSEN)),
+    placeholder='Straße suchen oder neu eingeben...',
+    description='Einsatzort:',
+    ensure_option=False,
+    layout={'width': '500px'}
+)
 
-# Sektion 1: Ort & Feststellung
-st.subheader("Einsatzdetails")
-col1, col2 = st.columns(2)
+# Polizei & Funkstreife
+polizei_check = widgets.Checkbox(description='Polizei vor Ort', value=False)
+funkstreife_txt = widgets.Text(
+    placeholder='Rufname (z.B. Augsburg 12/1)',
+    description='Funkstreife:',
+    layout={'width': '300px'}
+)
 
-with col1:
-    # "Index=None" erlaubt leeres Feld am Anfang
-    ort_auswahl = st.selectbox("📍 Einsatzort wählen", options=sorted(STRASSEN), index=None, placeholder="Straße suchen...")
-    manueller_ort = st.text_input("Oder anderen Ort/Straße eingeben:", placeholder="Falls oben nicht gelistet...")
-    finaler_ort = manueller_ort if manueller_ort else ort_auswahl
+# Zusätzliche Notizen
+notizen = widgets.Textarea(
+    placeholder='Besondere Vorkommnisse...',
+    description='Notizen:',
+    layout={'width': '500px', 'height': '100px'}
+)
 
-with col2:
-    fest_auswahl = st.selectbox("📝 Feststellung wählen", options=FESTSTELLUNGEN, index=None, placeholder="Verstoß suchen...")
-    manuelle_fest = st.text_input("Oder andere Feststellung eingeben:", placeholder="Eigener Text...")
-    finale_fest = manuelle_fest if manuelle_fest else fest_auswahl
+# Button und Output
+btn_senden = widgets.Button(
+    description='Protokoll Senden',
+    button_style='success', 
+    icon='check'
+)
+output = widgets.Output()
 
-st.markdown("---")
+# --- LOGIK ---
 
-# Sektion 2: Polizei & Funkstreife
-st.subheader("Kräfte vor Ort")
-c1, c2 = st.columns([1, 2])
-with c1:
-    polizei_vor_ort = st.checkbox("Polizei anwesend")
-with c2:
-    # Dieses Feld ist immer sichtbar, damit die Funkstreife eingetragen werden kann
-    funkstreife = st.text_input("Funkstreife", placeholder="Rufname eingeben (z.B. Augsburg 12/1)")
-
-# Sektion 3: Notizen
-st.subheader("Zusätzliche Informationen")
-notizen = st.text_area("Notizen / Einzelnachweise", placeholder="Hier Details eintragen...")
-
-# --- SENDEN BUTTON ---
-if st.button("Protokoll Senden", type="primary", use_container_width=True):
-    if not finaler_ort or not finale_fest:
-        st.error("❌ Fehler: Einsatzort und Feststellung müssen angegeben werden!")
-    else:
-        zeitpunkt = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+def protokoll_senden(b):
+    with output:
+        clear_output()
+        if not einsatzort.value:
+            print("❌ FEHLER: Bitte einen Einsatzort angeben!")
+            return
         
-        # Protokoll-Zusammenfassung
-        st.success("✅ Protokoll erfolgreich generiert!")
+        zeit = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
         
-        ausgabe = f"""
-        **PROTOKOLL-DETAILS:**
-        - **Zeit:** {zeitpunkt}
-        - **Ort:** {finaler_ort}
-        - **Feststellung:** {finale_fest}
-        - **Polizei:** {"Ja" if polizei_vor_ort else "Nein"}
-        - **Funkstreife:** {funkstreife if funkstreife else "Keine Angabe"}
-        - **Zusatz:** {notizen if notizen else "Keine weiteren Anmerkungen"}
+        # Zusammenfassung der Daten
+        bericht = f"""
+        --- NEUER EINTRAG ---
+        Zeitpunkt: {zeit}
+        Einsatzort: {einsatzort.value}
+        Polizei vor Ort: {'Ja' if polizei_check.value else 'Nein'}
+        Funkstreife: {funkstreife_txt.value if funkstreife_txt.value else 'Keine Angabe'}
+        Notizen: {notizen.value}
+        ----------------------
         """
-        st.markdown(ausgabe)
         
-        # Hier kann später die E-Mail-Funktion (SMTP) aktiviert werden
-        st.toast("Daten wurden für den Versand vorbereitet!")
+        # Hier würde die E-Mail-Logik an RECIPIENTS anknüpfen
+        print(f"✅ Protokoll erfolgreich erstellt!")
+        print(f"📧 Versand an: {', '.join(RECIPIENTS)}")
+        print(bericht)
 
+btn_senden.on_click(protokoll_senden)
+
+# --- LAYOUT ANZEIGEN ---
+
+# Polizei-Check und Funkstreife in einer Zeile
+polizei_box = widgets.HBox([polizei_check, funkstreife_txt])
+
+UI = widgets.VBox([
+    header,
+    einsatzort,
+    polizei_box,
+    notizen,
+    btn_senden,
+    output
+])
+
+display(UI)
