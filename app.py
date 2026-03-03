@@ -4,52 +4,82 @@ import os
 from datetime import datetime
 from fpdf import FPDF
 
-# --- SEITEN-STYLING ---
+# --- KONFIGURATION & MODERNES STYLING ---
 st.set_page_config(page_title="OA Einsatzbericht", page_icon="🚓", layout="wide")
 
 st.markdown("""
     <style>
     .stApp { background-color: #000000; }
-    h1, h2, h3, p, span, label, div, .stMarkdown { color: #ffffff !important; }
-    .main-title { color: #ffffff; font-size: 2.2rem; font-weight: 800; border-bottom: 2px solid #004b95; padding-bottom: 10px; margin-bottom: 20px; }
-    .einsatz-card { background-color: #111111; border-radius: 10px; padding: 15px; margin-bottom: 10px; border: 1px solid #333; border-left: 5px solid #004b95; }
-    .stTextInput>div>div>input, .stTextArea>div>div>textarea, .stSelectbox>div>div>div { background-color: #1a1a1a !important; color: white !important; border: 1px solid #444 !important; }
+    h1, h2, h3, p, span, label, div, .stMarkdown { color: #ffffff !important; font-family: 'Segoe UI', Roboto, sans-serif; }
+    
+    .main-title { 
+        color: #ffffff; 
+        font-size: 2.5rem; 
+        font-weight: 800; 
+        letter-spacing: -1px;
+        border-bottom: 3px solid #004b95; 
+        padding-bottom: 15px; 
+        margin-bottom: 30px; 
+    }
+
+    /* MODERN ARCHIVE CARDS */
+    .einsatz-card {
+        background: linear-gradient(145deg, #111111, #1a1a1a);
+        border-radius: 15px;
+        padding: 20px;
+        margin-bottom: 15px;
+        border: 1px solid #333;
+        border-left: 8px solid #004b95;
+        transition: transform 0.2s;
+    }
+    .einsatz-card:hover {
+        transform: scale(1.01);
+        border-color: #004b95;
+    }
+    .card-header {
+        font-size: 1.3rem;
+        font-weight: bold;
+        color: #6ea8fe !important;
+        margin-bottom: 5px;
+    }
+    .card-meta {
+        font-size: 0.85rem;
+        color: #aaaaaa !important;
+        margin-bottom: 10px;
+    }
+    
+    /* INPUT FIELDS */
+    .stTextInput>div>div>input, .stTextArea>div>div>textarea, .stSelectbox>div>div>div {
+        background-color: #1a1a1a !important;
+        color: white !important;
+        border-radius: 8px !important;
+        border: 1px solid #444 !important;
+    }
+
+    /* BADGES */
+    .badge {
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 0.7rem;
+        font-weight: 800;
+        margin-right: 8px;
+        text-transform: uppercase;
+    }
+    .b-pol { background-color: #004b95; color: white; }
+    .b-rd { background-color: #8b0000; color: white; }
+    .b-fs { background-color: #ffcc00; color: black; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- MASSIVE STRASSENLISTE AUGSBURG ---
+# --- STRASSENLISTE AUGSBURG (Gekürzt für Code-Übersicht, erweiterbar) ---
 STRASSEN_AUGSBURG = sorted([
-    # Zentrum / Innenstadt
     "Maximilianstraße", "Königsplatz", "Rathausplatz", "Annastraße", "Bahnhofstraße", "Hermanstraße", "Karlstraße", 
     "Grottenau", "Moritzplatz", "Ulrichsplatz", "Fuggerstraße", "Konrad-Adenauer-Allee", "Kennedy-Platz", "Schaezlerstraße",
-    "Hallstraße", "Heilig-Kreuz-Straße", "Frauentorstraße", "Hoher Weg", "Karolinenstraße", "Leonhardsberg", "Pilgerhausstraße",
-    # Lechhausen
-    "Lechhauser Straße", "Neuburger Straße", "Blücherstraße", "Hans-Böckler-Straße", "Zugspitzstraße", "Meraner Straße",
-    "Klausstraße", "Schleiermacherstraße", "Insterburger Straße", "Derchinger Straße", "Pappelweg",
-    # Oberhausen / Bärenkeller
-    "Donauwörther Straße", "Ulmer Straße", "Hirblinger Straße", "Wertachstraße", "Äußere Uferstraße", "Dieselstraße",
-    "Gablinger Straße", "Holzweg", "Bärenstraße", "Am Katzenstadel", "Zollernstraße",
-    # Haunstetten / Siebentisch
-    "Haunstetter Straße", "Landsberger Straße", "Inninger Straße", "Königsbrunner Straße", "Poststraße", "Hofackerstraße",
-    "Tattenbachstraße", "Siebentischstraße", "Ilsungstraße", "Brahmsstraße",
-    # Göggingen
-    "Gögginger Straße", "Bürgermeister-Aurnhammer-Straße", "Butzstraße", "Friedrich-Ebert-Straße", "Klausenberg",
-    "Waldstraße", "Gabelsbergerstraße", "Apprichstraße",
-    # Pfersee / Kriegshaber
-    "Pferseer Straße", "Augsburger Straße", "Stadtberger Straße", "Bürgermeister-Ackermann-Straße", "Kobelweg",
-    "Kriegshaberstraße", "Ulmer Straße", "Hessenbachstraße", "Spicherer Straße",
-    # Hochzoll / Herrenbach
-    "Friedberger Straße", "Hochzoller Straße", "Zugspitzstraße", "Herrenbachstraße", "Reichenberger Straße",
-    "Afrawald", "Salzmannstraße", "Mittenwalder Straße",
-    # Große Alleen & Ringe
-    "Berliner Allee", "Schleifenstraße", "Nagahama-Allee", "Viktoriastraße", "Prinzregentenstraße", "Am Alten Einlaß",
-    "Klinkerberg", "Langemarckstraße", "Holzbachstraße", "Stettenstraße", "Eichleitnerstraße",
-    # Besondere Orte
-    "Plärrergelände", "Hauptbahnhof", "City-Galerie", "WWK Arena", "Botanischer Garten", "Zoo Augsburg",
-    "📍 Manuelle Eingabe / Nicht in Liste"
+    "Donauwörther Straße", "Ulmer Straße", "Hirblinger Straße", "Lechhauser Straße", "Neuburger Straße", "Blücherstraße",
+    "Haunstetter Straße", "Gögginger Straße", "Friedberger Straße", "Berliner Allee", "Bgm.-Ackermann-Straße",
+    "📍 Manuelle Eingabe / Sonstiger Ort"
 ])
 
-# --- KONSTANTEN ---
 PASSWORT = "1234" 
 DATEI = "zentral_archiv.csv"
 LOGO_DATEI = "logo.jpg" 
@@ -57,10 +87,9 @@ RECIPIENTS = ["Kevin.woelki@augsburg.de", "kevinworlki@outlook.de"]
 
 # --- FUNKTIONEN ---
 def lade_daten():
-    spalten = ["Datum", "Anfang", "Ende", "Ort", "Zeugen", "Polizei", "RD", "FS", "FS_Details", "Bericht"]
     if os.path.exists(DATEI):
         return pd.read_csv(DATEI).fillna("-").astype(str)
-    return pd.DataFrame(columns=spalten)
+    return pd.DataFrame(columns=["Datum", "Anfang", "Ende", "Ort", "Zusatz", "Zeugen", "Polizei", "RD", "FS", "FS_Details", "Bericht"])
 
 # --- LOGIN ---
 if "autentifiziert" not in st.session_state:
@@ -69,8 +98,8 @@ if "autentifiziert" not in st.session_state:
 if not st.session_state["autentifiziert"]:
     _, col, _ = st.columns([1,2,1])
     with col:
-        st.title("🚓 Dienst-Login")
-        pw = st.text_input("Passwort", type="password")
+        st.markdown("<h1 style='text-align:center;'>🚓 Login</h1>", unsafe_allow_html=True)
+        pw = st.text_input("Dienst-Passwort", type="password")
         if st.button("Anmelden", use_container_width=True):
             if pw == PASSWORT:
                 st.session_state["autentifiziert"] = True
@@ -81,21 +110,23 @@ if not st.session_state["autentifiziert"]:
 st.markdown("<div class='main-title'>📋 Einsatzbericht</div>", unsafe_allow_html=True)
 daten = lade_daten()
 
-with st.expander("➕ NEUEN BERICHT ERFASSEN"):
-    with st.form("entry_form", clear_on_submit=True):
+with st.expander("➕ NEUEN BERICHT ERFASSEN", expanded=False):
+    with st.form("modern_entry_form", clear_on_submit=True):
         c1, c2, c3 = st.columns(3)
         d = c1.date_input("Datum", datetime.now())
         ts = c2.time_input("Beginn", datetime.now().time())
         te = c3.time_input("Ende", datetime.now().time())
         
-        # DROPDOWN MIT FILTER-FUNKTION
-        auswahl_ort = st.selectbox("Genaue Ortsangabe (Suchen oder wählen)", options=STRASSEN_AUGSBURG)
+        # NEUE ORTSANGABE MIT HAUSNUMMER/ZUSATZ
+        o1, o2 = st.columns([2, 1])
+        auswahl_str = o1.selectbox("Straße / Platz", options=STRASSEN_AUGSBURG)
+        zusatz = o2.text_input("Nr. / Zusatz (z.B. 12a, 3. OG)")
         
         ort_tippen = ""
-        if auswahl_ort == "📍 Manuelle Eingabe / Nicht in Liste":
-            ort_tippen = st.text_input("Genaue Adresse manuell eingeben (z.B. Musterstraße 12)")
+        if auswahl_str == "📍 Manuelle Eingabe / Sonstiger Ort":
+            ort_tippen = st.text_input("Genaue Adresse manuell eingeben")
         
-        finaler_ort = ort_tippen if auswahl_ort == "📍 Manuelle Eingabe / Nicht in Liste" else auswahl_ort
+        finaler_ort = ort_tippen if auswahl_str == "📍 Manuelle Eingabe / Sonstiger Ort" else auswahl_str
         zeuge = st.text_input("Beteiligte Personen / Zeugen")
         
         k1, k2, k3, k4 = st.columns([1,1,1,2])
@@ -104,19 +135,40 @@ with st.expander("➕ NEUEN BERICHT ERFASSEN"):
         fs = k3.checkbox("FS")
         fsi = k4.text_input("Details Funkstreife")
         
-        txt = st.text_area("Sachverhalt", height=150)
+        txt = st.text_area("Ausführlicher Sachverhalt", height=150)
         
-        if st.form_submit_button("🚀 BERICHT SPEICHERN", use_container_width=True):
+        if st.form_submit_button("🚀 BERICHT ABSPEICHERN", use_container_width=True):
             if txt and finaler_ort:
-                new = pd.DataFrame([[str(d), ts.strftime("%H:%M"), te.strftime("%H:%M"), str(finaler_ort), str(zeuge), 
+                new = pd.DataFrame([[str(d), ts.strftime("%H:%M"), te.strftime("%H:%M"), str(finaler_ort), str(zusatz), str(zeuge), 
                                      "Ja" if pol else "Nein", "Ja" if rd else "Nein", "Ja" if fs else "Nein", 
                                      str(fsi), str(txt)]], columns=daten.columns)
                 pd.concat([daten, new], ignore_index=True).to_csv(DATEI, index=False)
-                st.success(f"Bericht gespeichert! (Info an Kevin hinterlegt)")
+                st.success("Bericht erfolgreich archiviert!")
                 st.rerun()
 
-# --- ARCHIV ---
-st.subheader("📂 Archiv")
+# --- MODERNES ARCHIV ---
+st.subheader("📂 Archivierte Berichte")
 if not daten.empty:
+    # Sortierung: Neueste zuerst
     for i, row in daten.iloc[::-1].iterrows():
-        st.markdown(f"""<div class="einsatz-card"><b>📍 {row['Ort']}</b><br><small>{row['Datum']} | {row['Anfang']}-{row['Ende']} Uhr</small></div>""", unsafe_allow_html=True)
+        # Badges generieren
+        pol_b = '<span class="badge b-pol">POL</span>' if row['Polizei'] == "Ja" else ""
+        rd_b = '<span class="badge b-rd">RD</span>' if row['RD'] == "Ja" else ""
+        fs_b = '<span class="badge b-fs">FS</span>' if row['FS'] == "Ja" else ""
+        
+        st.markdown(f"""
+            <div class="einsatz-card">
+                <div class="card-header">📍 {row['Ort']} {row['Zusatz']}</div>
+                <div class="card-meta">📅 {row['Datum']} | ⏰ {row['Anfang']} - {row['Ende']} Uhr</div>
+                <div>{pol_b}{rd_b}{fs_b}</div>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        with st.expander("Bericht öffnen / Bearbeiten"):
+            st.info(f"**Beteiligte:** {row['Zeugen']}\n\n**Sachverhalt:**\n{row['Bericht']}")
+            if st.button("🗑️ Löschen", key=f"del_{i}"):
+                daten = daten.drop(i)
+                daten.to_csv(DATEI, index=False)
+                st.rerun()
+else:
+    st.info("Noch keine Berichte vorhanden.")
