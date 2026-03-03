@@ -121,7 +121,7 @@ def create_official_pdf(row_data):
 
     pdf.set_y(-25)
     pdf.set_font("Arial", 'I', 8)
-    pdf.cell(0, 10, f"Erstellt: {datetime.now().strftime('%d.%m.%Y')} | Empfänger: Kevin.woelki@augsburg.de", align='C')
+    pdf.cell(0, 10, f"Erstellt: {datetime.now().strftime('%d.%m.%Y')} | Augsburg", align='C')
     return pdf.output(dest="S").encode("latin-1")
 
 # --- 5. APP LOGIK ---
@@ -145,11 +145,11 @@ with st.expander("📝 NEUEN BERICHT ANLEGEN", expanded=True):
         datum = c1.date_input("📅 Datum")
         beginn = c2.time_input("🕒 Beginn")
         ende = c3.time_input("🕒 Ende")
-        az_val = c4.text_input("📂 AZ (z.B. 2026-001)")
+        az_val = c4.text_input("📂 AZ (Aktenzeichen)")
         
         o1, o2 = st.columns([3, 1])
-        # GEÄNDERT: text_input statt selectbox für manuelle Eingabe
-        ort_val = o1.text_input("🗺️ Einsatzort (Manuelle Eingabe)", placeholder="z.B. Königsplatz, Maximilianstraße...")
+        # ÄNDERUNG: Name zu "Einsatzort" und manuelles text_input
+        ort_val = o1.text_input("🗺️ Einsatzort", placeholder="Straße, Platz oder Ortsteil manuell eingeben...")
         hnr_val = o2.text_input("Hausnr.")
 
         st.subheader("👮 Beteiligte Behörden")
@@ -157,7 +157,7 @@ with st.expander("📝 NEUEN BERICHT ANLEGEN", expanded=True):
         pol_check = k_col1.checkbox("🚔 Polizei")
         rtw_check = k_col2.checkbox("🚑 Rettungsdienst")
         fw_check = k_col3.checkbox("🚒 Feuerwehr")
-        streife = st.text_input("🆔 Funkstreife / Name", placeholder="Nur bei Polizei nötig") if pol_check else ""
+        streife = st.text_input("🆔 Funkstreife / Name", placeholder="Falls Polizei vor Ort") if pol_check else ""
 
         st.subheader("📄 Berichtsinhalt")
         inhalt = st.text_area("✍️ Sachverhalt", height=150)
@@ -179,3 +179,70 @@ with st.expander("📝 NEUEN BERICHT ANLEGEN", expanded=True):
                 b64_img = base64.b64encode(buf.getvalue()).decode()
 
             new_data = {
+                "Datum": str(datum), "Beginn": beginn.strftime("%H:%M"), "Ende": ende.strftime("%H:%M"),
+                "Ort": ort_val, "Hausnummer": hnr_val, "Zeugen": verschluesseln(beteiligte),
+                "Bericht": verschluesseln(inhalt), "AZ": az_val, "Foto": verschluesseln(b64_img),
+                "GPS": gps_val, "Kraefte": verschluesseln(", ".join(k_list))
+            }
+            
+            df = pd.read_csv(DATEI) if os.path.exists(DATEI) else pd.DataFrame(columns=COLUMNS)
+            df = pd.concat([df, pd.DataFrame([new_data])], ignore_index=True)
+            df.to_csv(DATEI, index=False)
+            st.success("✅ Bericht wurde gespeichert.")
+            st.rerun()
+
+# --- ARCHIV ---
+st.divider()
+st.header("📂 Einsatzarchiv")
+if os.path.exists(DATEI):
+    df_archive = pd.read_csv(DATEI).astype(str)
+    suche = st.text_input("🔍 Suche nach AZ oder Einsatzort...")
+    
+    if suche:
+        df_archive = df_archive[df_archive['AZ'].str.contains(suche, case=False) | df_archive['Ort'].str.contains(suche, case=False)]
+
+    for idx, row in df_archive.iloc[::-1].iterrows():
+        st.markdown(f"""
+            <div class="report-card">
+                <div style="display: flex; justify-content: space-between;">
+                    <span style="font-size: 1.2em;">📂 <strong>AZ: {row['AZ']}</strong></span>
+                    <span>📅 {row['Datum']}</span>
+                </div>
+                <hr style="margin: 10px 0;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <div class="metric-box">📍 <b>Einsatzort:</b> {row['Ort']} {row['Hausnummer']}</div>
+                    <div class="metric-box">🕒 <b>Zeit:</b> {row['Beginn']} - {row['Ende']}</div>
+                    <div class="metric-box">👮 <b>Kräfte:</b> {entschluesseln(row['Kraefte'])}</div>
+                    <div class="metric-box">🌐 <b>GPS:</b> {row['GPS']}</div>
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        c_det, c_pdf, c_del = st.columns([3, 1, 1])
+        with c_det:
+            with st.expander("👁️ Details anzeigen"):
+                st.info(f"**✍️ Sachverhalt:**\n{entschluesseln(row['Bericht'])}")
+                st.warning(f"**👥 Beteiligte:** {entschluesseln(row['Zeugen'])}")
+                img_data = entschluesseln(row['Foto'])
+                if img_data != "-": st.image(base64.b64decode(img_data), caption="Beweismittel", width=400)
+        
+        with c_pdf:
+            pdf_bytes = create_official_pdf(row)
+            st.download_button("📄 PDF Export", pdf_bytes, f"Bericht_{row['AZ']}.pdf", "application/pdf", key=f"pdf_{idx}")
+        
+        with c_del:
+            if st.session_state["admin_auth"]:
+                if st.button("🗑️ Löschen", key=f"del_{idx}"):
+                    df_archive.drop(idx).to_csv(DATEI, index=False)
+                    st.rerun()
+
+# --- ADMIN ---
+with st.sidebar:
+    st.title("🛡️ Administration")
+    if st.checkbox("🔑 Admin-Modus"):
+        if st.text_input("Passwort", type="password") == ADMIN_PW:
+            st.session_state["admin_auth"] = True
+            if st.button("🚨 ARCHIV LÖSCHEN"):
+                if os.path.exists(DATEI): os.remove(DATEI)
+                st.rerun()
+        else: st.session_state["admin_auth"] = False
