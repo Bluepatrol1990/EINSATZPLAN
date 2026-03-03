@@ -1,0 +1,6 @@
+streamlit
+pandas
+fpdf
+Pillow
+cryptography
+streamlit-js-eval
