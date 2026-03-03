@@ -148,7 +148,6 @@ with st.expander("📝 NEUEN BERICHT ANLEGEN", expanded=True):
         az_val = c4.text_input("📂 AZ (Aktenzeichen)")
         
         o1, o2 = st.columns([3, 1])
-        # ÄNDERUNG: Name zu "Einsatzort" und manuelles text_input
         ort_val = o1.text_input("🗺️ Einsatzort", placeholder="Straße, Platz oder Ortsteil manuell eingeben...")
         hnr_val = o2.text_input("Hausnr.")
 
@@ -157,7 +156,11 @@ with st.expander("📝 NEUEN BERICHT ANLEGEN", expanded=True):
         pol_check = k_col1.checkbox("🚔 Polizei")
         rtw_check = k_col2.checkbox("🚑 Rettungsdienst")
         fw_check = k_col3.checkbox("🚒 Feuerwehr")
-        streife = st.text_input("🆔 Funkstreife / Name", placeholder="Falls Polizei vor Ort") if pol_check else ""
+        
+        # NEU: Dynamisches Textfeld für Funkname unter der Polizei-Checkbox
+        funkname = ""
+        if pol_check:
+            funkname = st.text_input("🆔 Funkname", placeholder="z.B. Augsburg 12/1")
 
         st.subheader("📄 Berichtsinhalt")
         inhalt = st.text_area("✍️ Sachverhalt", height=150)
@@ -166,7 +169,7 @@ with st.expander("📝 NEUEN BERICHT ANLEGEN", expanded=True):
 
         if st.form_submit_button("✅ BERICHT SPEICHERN"):
             k_list = ["KOD"]
-            if pol_check: k_list.append(f"Polizei ({streife})")
+            if pol_check: k_list.append(f"Polizei ({funkname})" if funkname else "Polizei")
             if rtw_check: k_list.append("Rettungsdienst")
             if fw_check: k_list.append("Feuerwehr")
             
@@ -242,7 +245,8 @@ with st.sidebar:
     if st.checkbox("🔑 Admin-Modus"):
         if st.text_input("Passwort", type="password") == ADMIN_PW:
             st.session_state["admin_auth"] = True
-            if st.button("🚨 ARCHIV LÖSCHEN"):
+            st.success("Admin-Modus aktiv")
+            if st.button("🚨 ARCHIV KOMPLETT LEEREN"):
                 if os.path.exists(DATEI): os.remove(DATEI)
                 st.rerun()
         else: st.session_state["admin_auth"] = False
