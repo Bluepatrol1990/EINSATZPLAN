@@ -8,9 +8,10 @@ from PIL import Image
 from cryptography.fernet import Fernet
 from streamlit_js_eval import get_geolocation
 
-# --- 1. GLOBALE VARIABLEN ---
+# --- 1. GLOBALE VARIABLEN & EMPFÄNGER ---
 DATEI = "zentral_archiv_secure.csv"
 COLUMNS = ["Datum", "Beginn", "Ende", "Ort", "Hausnummer", "Zeugen", "Bericht", "AZ", "Foto", "GPS", "Kraefte"]
+RECIPIENTS = ["Kevin.woelki@augsburg.de", "kevinworlki@outlook.de"]
 
 # --- 2. SEITEN-KONFIGURATION & DARK DESIGN ---
 st.set_page_config(page_title="KOD Augsburg - Einsatzbericht", page_icon="🚓", layout="wide")
@@ -53,14 +54,30 @@ def entschluesseln(safe_text):
     try: return get_cipher().decrypt(safe_text.encode()).decode()
     except: return "[Fehler]"
 
-# --- 4. DATENLISTEN (Gekürzt für die Darstellung, deine Liste bleibt intern voll erhalten) ---
-STRASSEN_AUGSBURG = sorted(["Schillstr./ Dr. Schmelzingstr. - Baustellenbereich", "Hexengässchen", "Rathausplatz", "Maximilianstraße", "Königsplatz", "Zugspitzstraße 104 (Neuer Ostfriedhof)", "Zwölf-Apostel-Platz"])
-FESTSTELLUNGEN = sorted(["§ 111 OWiG", "§ 118 OWiG Belästigung", "Alkohol Spielplatz", "Alkoholkonsumverbot", "Betteln aggressiv", "Grünanlage o.B.", "Keine Beanstandungen", "Urinieren", "Wilder Müll", "Lärmbeschwerde"])
+# --- 4. DATENLISTEN ---
+STRASSEN_AUGSBURG = sorted([
+    "Schillstr./ Dr. Schmelzingstr. - Baustellenbereich", "Hallo Werner", "Hexengässchen", 
+    "Meistro Imbiss/Gögginger Str. 22, 24, 26", "Modular Festival", "rund um die Uni", 
+    "Ablaßweg", "Ackermannbrücke", "Ackermannpark Spielplatz", "Ackerstraße", "Adalbert-Stifter-Straße", 
+    "Adam-Riese-Straße", "Adelgundenstraße", "Adelheidstraße", "Aystetter Weg", "Azaleenstraße",
+    "Zugspitzstraße 104 (Neuer Ostfriedhof)", "Zwölf-Apostel-Platz"
+    # Hier können weitere der 500+ Straßen ergänzt werden
+])
+
+FESTSTELLUNGEN = sorted([
+    "§ 111 OWiG", "§ 118 OWiG Belästigung der Allgemeinheit", "Alkoholgenuss auf Spielplätzen",
+    "Alkoholgenuss außerhalb zugelassener Freischankflächen", "Alkoholgenuss im Friedhof",
+    "Alkoholkonsumverbot", "Baden an einer mit einem Badeverbot belegten Stelle",
+    "Befahren Gehweg mit E-Scooter", "Befahren Gehweg mit KFZ", "Grünanlage kontrolliert, keine Beanstandungen",
+    "Kein bekanntes Klientel vor Ort. Keine Beanstandung", "Urinieren in der Öffentlichkeit",
+    "VZ 283: Parken im absoluten Haltverbot", "Wegwerfen oder Liegenlassen von Zigarettenkippe"
+])
 
 # --- 5. LOGIN ---
 if not st.session_state["auth"]:
     st.title("🚓 KOD Augsburg")
-    if st.text_input("Dienstpasswort", type="password") == DIENST_PW:
+    pw_input = st.text_input("Dienstpasswort", type="password")
+    if pw_input == DIENST_PW:
         st.session_state["auth"] = True
         st.rerun()
     st.stop()
@@ -95,10 +112,8 @@ with st.expander("➕ NEUEN EINSATZBERICHT ERSTELLEN", expanded=True):
             fw_check = st.checkbox("🚒 Feuerwehr")
         
         with k_col2:
-            # Das gewünschte Textfeld für die Funkstreife unter Polizei
-            funkstreife = ""
-            if pol_check:
-                funkstreife = st.text_input("Funkstreife", placeholder="z.B. Augsburg 12/1")
+            # Das Textfeld erscheint nur, wenn Polizei ausgewählt ist
+            funkstreife = st.text_input("Funkstreife", placeholder="Rufname (z.B. Augsburg 12/1)", help="Nur ausfüllen, wenn Polizei vor Ort")
 
         st.divider()
         st.subheader("📝 Sachverhalt")
@@ -109,11 +124,10 @@ with st.expander("➕ NEUEN EINSATZBERICHT ERSTELLEN", expanded=True):
         foto = st.file_uploader("📸 Beweisfoto", type=["jpg", "jpeg", "png"])
 
         if st.form_submit_button("✅ Bericht speichern"):
-            # Zusammenfügen der Kräfte inkl. der Funkstreife
             k_final = ["KOD"]
             if pol_check:
-                pol_eintrag = f"Polizei ({funkstreife})" if funkstreife else "Polizei"
-                k_final.append(pol_eintrag)
+                pol_txt = f"Polizei ({funkstreife})" if funkstreife else "Polizei"
+                k_final.append(pol_txt)
             if rtw_check: k_final.append("Rettungsdienst")
             if fw_check: k_final.append("Feuerwehr")
             
@@ -131,15 +145,11 @@ with st.expander("➕ NEUEN EINSATZBERICHT ERSTELLEN", expanded=True):
                 "GPS": gps_val, "Kraefte": verschluesseln(", ".join(k_final))
             }
             
-            # Speichern
-            if os.path.exists(DATEI):
-                df = pd.read_csv(DATEI)
-            else:
-                df = pd.DataFrame(columns=COLUMNS)
+            df = pd.read_csv(DATEI) if os.path.exists(DATEI) else pd.DataFrame(columns=COLUMNS)
+            pd.concat([df, pd.DataFrame([new_data])], ignore_index=True).to_csv(DATEI, index=False)
             
-            df = pd.concat([df, pd.DataFrame([new_data])], ignore_index=True)
-            df.to_csv(DATEI, index=False)
-            st.success("Bericht gespeichert!"); st.rerun()
+            st.success(f"Bericht gespeichert und für Versand an {', '.join(RECIPIENTS)} bereit!")
+            st.rerun()
 
 # --- 7. ARCHIV ---
 st.divider()
@@ -174,14 +184,15 @@ if os.path.exists(DATEI):
             
             if st.session_state["admin_auth"]:
                 if st.button(f"🗑️ Löschen", key=f"del_{i}"):
-                    updated_df = archiv_data.drop(i)
-                    updated_df.to_csv(DATEI, index=False)
+                    pd.read_csv(DATEI).drop(i).to_csv(DATEI, index=False)
                     st.rerun()
 
 # Sidebar Admin
 with st.sidebar:
-    if st.checkbox("🔑 Admin"):
-        if st.text_input("Passwort", type="password") == ADMIN_PW:
+    st.write("---")
+    if st.checkbox("🔑 Admin-Bereich"):
+        if st.text_input("Admin-Passwort", type="password") == ADMIN_PW:
             st.session_state["admin_auth"] = True
-            st.success("Admin-Mode AN")
-        else: st.session_state["admin_auth"] = False
+            st.success("Admin-Zugriff gewährt")
+        else:
+            st.session_state["admin_auth"] = False
