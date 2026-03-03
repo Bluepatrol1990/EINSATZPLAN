@@ -13,7 +13,7 @@ from fpdf import FPDF
 DATEI = "zentral_archiv_secure.csv"
 COLUMNS = ["Datum", "Beginn", "Ende", "Ort", "Hausnummer", "Zeugen", "Bericht", "AZ", "Foto", "GPS", "Kraefte"]
 
-# Empfänger gemäß Anforderung
+# Hinterlegte Empfänger aus deinen Vorgaben
 RECIPIENTS = ["Kevin.woelki@augsburg.de", "kevinworlki@outlook.de"]
 
 st.set_page_config(page_title="KOD Augsburg - Einsatzbericht", page_icon="🚓", layout="wide") 
@@ -22,12 +22,13 @@ st.set_page_config(page_title="KOD Augsburg - Einsatzbericht", page_icon="🚓",
 if "auth" not in st.session_state: st.session_state["auth"] = False
 if "admin_auth" not in st.session_state: st.session_state["admin_auth"] = False 
 
+# Standard-Passwörter (Sollten in streamlit secrets geändert werden)
 DIENST_PW = st.secrets.get("dienst_password", "1234")
 MASTER_KEY = st.secrets.get("master_key", "AugsburgSicherheit32ZeichenCheck!")
 ADMIN_PW = "admin789" 
 
 def get_cipher():
-    # Erzeugt einen validen Fernet-Key aus dem Master-Key
+    # Erzeugt einen 32-Byte Key für Fernet
     key_64 = base64.urlsafe_b64encode(MASTER_KEY[:32].encode().ljust(32))
     return Fernet(key_64) 
 
@@ -40,33 +41,34 @@ def entschluesseln(safe_text):
     try: return get_cipher().decrypt(safe_text.encode()).decode()
     except: return "[Fehler]" 
 
-# --- 3. PDF GENERIERUNG ---
+# --- 3. PDF FUNKTION ---
 def create_pdf(row, bericht, kraefte, zeugen, foto_b64):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("helvetica", "B", 16)
     
-    # Kopfzeile
+    # Header
     pdf.cell(0, 10, "KOD Augsburg - Einsatzbericht", ln=True, align='C')
     pdf.set_font("helvetica", "I", 8)
-    pdf.cell(0, 5, f"Kopie an: {', '.join(RECIPIENTS)}", ln=True, align='C')
+    pdf.cell(0, 5, f"Empfänger: {', '.join(RECIPIENTS)}", ln=True, align='C')
     pdf.ln(10)
     
-    # Daten-Tabelle
-    pdf.set_font("helvetica", "B", 12)
-    data = [
-        ["Datum", str(row['Datum'])],
-        ["Zeit", f"{row['Beginn']} - {row['Ende']}"],
-        ["Ort", f"{row['Ort']} {row['Hausnummer']}"],
-        ["Aktenzeichen", str(row['AZ'])],
-        ["Kräfte", str(kraefte)]
+    # Details Tabelle
+    pdf.set_font("helvetica", "B", 10)
+    details = [
+        ("Datum:", str(row['Datum'])),
+        ("Zeit:", f"{row['Beginn']} - {row['Ende']}"),
+        ("Ort:", f"{row['Ort']} {row['Hausnummer']}"),
+        ("AZ:", str(row['AZ'])),
+        ("Kräfte:", str(kraefte)),
+        ("GPS:", str(row['GPS']))
     ]
     
-    for item in data:
+    for label, val in details:
         pdf.set_font("helvetica", "B", 10)
-        pdf.cell(40, 7, item[0] + ":", border=0)
+        pdf.cell(35, 7, label, 0)
         pdf.set_font("helvetica", "", 10)
-        pdf.cell(0, 7, item[1], border=0, ln=True)
+        pdf.cell(0, 7, val, 0, ln=True)
     
     pdf.ln(5)
     pdf.set_font("helvetica", "B", 12)
@@ -83,15 +85,15 @@ def create_pdf(row, bericht, kraefte, zeugen, foto_b64):
 
     if foto_b64 != "-":
         try:
-            img_data = base64.b64decode(foto_b64)
-            img_path = "temp_img.jpg"
-            with open(img_path, "wb") as f:
-                f.write(img_data)
+            img_bytes = base64.b64decode(foto_b64)
+            img_temp = "temp_handy_img.jpg"
+            with open(img_temp, "wb") as f:
+                f.write(img_bytes)
             pdf.ln(10)
-            pdf.image(img_path, x=10, w=100)
-            os.remove(img_path)
+            pdf.image(img_temp, x=10, w=120)
+            os.remove(img_temp)
         except:
-            pdf.cell(0, 10, "[Bildfehler]", ln=True)
+            pdf.cell(0, 10, "[Foto konnte nicht geladen werden]", ln=True)
             
     return pdf.output(dest='S')
 
@@ -111,6 +113,7 @@ if not st.session_state["auth"]:
 # --- 6. HAUPTSEITE ---
 st.title("📋 Einsatzbericht") 
 
+# GPS Erfassung
 loc = get_geolocation()
 gps_val = f"{loc['coords']['latitude']}, {loc['coords']['longitude']}" if loc else "Nicht erfasst" 
 
@@ -154,7 +157,8 @@ with st.expander("➕ NEUEN EINSATZBERICHT ERSTELLEN", expanded=True):
             if foto:
                 img = Image.open(foto)
                 img.thumbnail((800, 800))
-                b = io.BytesIO(); img.save(b, format="JPEG", quality=75)
+                b = io.BytesIO()
+                img.save(b, format="JPEG", quality=75)
                 f_b64 = base64.b64encode(b.getvalue()).decode() 
 
             new_data = {
@@ -167,7 +171,7 @@ with st.expander("➕ NEUEN EINSATZBERICHT ERSTELLEN", expanded=True):
             df = pd.read_csv(DATEI) if os.path.exists(DATEI) else pd.DataFrame(columns=COLUMNS)
             df = pd.concat([df, pd.DataFrame([new_data])], ignore_index=True)
             df.to_csv(DATEI, index=False)
-            st.success("Bericht erfolgreich gespeichert!")
+            st.success("Bericht gespeichert!")
             st.rerun() 
 
 # --- 7. ARCHIV ---
@@ -177,7 +181,13 @@ suche = st.text_input("🔍 Suche (Ort oder AZ)")
 
 if os.path.exists(DATEI):
     archiv_data = pd.read_csv(DATEI).astype(str)
-    display_data = archiv_data[archiv_data['Ort'].str.contains(suche, case=False) | archiv_data['AZ'].str.contains(suche, case=False)] if Suche else archiv_data
+    
+    # Filterung (mit Korrektur des Kleinbuchstabens 'suche')
+    if suche:
+        mask = archiv_data['Ort'].str.contains(suche, case=False) | archiv_data['AZ'].str.contains(suche, case=False)
+        display_data = archiv_data[mask]
+    else:
+        display_data = archiv_data
 
     for i, r in display_data.iloc[::-1].iterrows():
         akt_bericht = entschluesseln(r['Bericht'])
@@ -189,29 +199,32 @@ if os.path.exists(DATEI):
             <strong>📅 {r['Datum']} | 📍 {r['Ort']} {r['Hausnummer']}</strong> (AZ: {r['AZ']})<br>
             <small>🕒 {r['Beginn']} - {r['Ende']} | 👮 {akt_kraefte}</small></div>""", unsafe_allow_html=True)
         
-        with st.expander("📝 Details & PDF Export"):
+        with st.expander("📝 Details & PDF Download"):
             st.write(f"**Sachverhalt:**\n{akt_bericht}")
             if akt_zeugen != "-": st.write(f"**👥 Beteiligte:** {akt_zeugen}")
             if akt_foto != "-": st.image(base64.b64decode(akt_foto), width=400)
             
-            # PDF BUTTON
+            # PDF BUTTON GENERIERUNG
             pdf_data = create_pdf(r, akt_bericht, akt_kraefte, akt_zeugen, akt_foto)
             st.download_button(
-                label="📄 Bericht als PDF herunterladen",
+                label="📄 Als PDF herunterladen",
                 data=pdf_data,
-                file_name=f"KOD_Bericht_{r['Datum']}_{r['AZ']}.pdf",
+                file_name=f"Bericht_{r['Datum']}_{r['AZ']}.pdf",
                 mime="application/pdf",
                 key=f"pdf_{i}"
             )
 
             if st.session_state["admin_auth"]:
                 if st.button(f"🗑️ Löschen", key=f"del_{i}"):
-                    archiv_data.drop(i).to_csv(DATEI, index=False)
+                    updated_df = archiv_data.drop(i)
+                    updated_df.to_csv(DATEI, index=False)
                     st.rerun() 
 
 # Sidebar Admin
 with st.sidebar:
     if st.checkbox("🔑 Admin"):
-        if st.text_input("Passwort", type="password") == ADMIN_PW:
+        if st.text_input("Admin-Passwort", type="password") == ADMIN_PW:
             st.session_state["admin_auth"] = True
-            st.success("Admin-Mode AN")
+            st.success("Admin-Modus AN")
+        else:
+            st.session_state["admin_auth"] = False
