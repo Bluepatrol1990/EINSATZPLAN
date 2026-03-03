@@ -100,7 +100,7 @@ def generate_pdf_bytes(row, bericht, kraefte, zeugen):
     except Exception as e:
         return None
 
-# --- 5. LOGIN ---
+# --- 4. LOGIN ---
 if not st.session_state["auth"]:
     st.title("🚓 KOD Augsburg")
     pw_input = st.text_input("Dienstpasswort", type="password")
@@ -109,7 +109,7 @@ if not st.session_state["auth"]:
         st.rerun()
     st.stop()
 
-# --- 6. HAUPTSEITE ---
+# --- 5. HAUPTSEITE ---
 st.title("📋 Einsatzbericht")
 
 loc = get_geolocation()
@@ -168,41 +168,55 @@ with st.expander("➕ NEUEN BERICHT ERFASSEN", expanded=True):
             st.success("Bericht gespeichert!")
             st.rerun()
 
-# --- 7. ARCHIV ---
+# --- 6. ARCHIV ---
 st.divider()
 st.header("📂 Einsatzarchiv")
 suche = st.text_input("🔍 Suche (nach Ort oder AZ)")
 
 if os.path.exists(DATEI):
     archiv_df = pd.read_csv(DATEI).astype(str)
-    display_df = archiv_df[archiv_df['Ort'].str.contains(suche, case=False) | archiv_df['AZ'].str.contains(suche, case=False)] if Suche else archiv_df
+    
+    # KORREKTUR: 'suche' statt 'Suche'
+    if suche:
+        display_df = archiv_df[archiv_df['Ort'].str.contains(suche, case=False) | archiv_df['AZ'].str.contains(suche, case=False)]
+    else:
+        display_df = archiv_df
 
-    for i, r in display_df.iloc[::-1].iterrows():
-        b_dec = entschluesseln(r['Bericht'])
-        k_dec = entschluesseln(r['Kraefte'])
-        z_dec = entschluesseln(r['Zeugen'])
-        f_dec = entschluesseln(r['Foto'])
+    if not display_df.empty:
+        for i, r in display_df.iloc[::-1].iterrows():
+            b_dec = entschluesseln(r['Bericht'])
+            k_dec = entschluesseln(r['Kraefte'])
+            z_dec = entschluesseln(r['Zeugen'])
+            f_dec = entschluesseln(r['Foto'])
 
-        st.markdown(f'<div class="report-card"><strong>📅 {r["Datum"]} | 📍 {r["Ort"]} {r["Hausnummer"]}</strong> (AZ: {r["AZ"]})</div>', unsafe_allow_html=True)
-        
-        with st.expander("🔍 Details & PDF Download"):
-            c_left, c_right = st.columns([3, 1])
-            with c_left:
-                st.write(f"**Sachverhalt:**\n{b_dec}")
-                if z_dec != "-": st.write(f"**Beteiligte:** {z_dec}")
+            st.markdown(f'<div class="report-card"><strong>📅 {r["Datum"]} | 📍 {r["Ort"]} {r["Hausnummer"]}</strong> (AZ: {r["AZ"]})</div>', unsafe_allow_html=True)
             
-            with c_right:
-                # PDF wird hier erst beim Öffnen des Expanders generiert
-                pdf_bytes = generate_pdf_bytes(r, b_dec, k_dec, z_dec)
-                if pdf_bytes:
-                    st.download_button(
-                        label="📄 PDF Download",
-                        data=pdf_bytes,
-                        file_name=f"Bericht_{r['AZ']}.pdf",
-                        mime="application/pdf",
-                        key=f"dl_{i}"
-                    )
-                else:
-                    st.error("Fehler beim Erstellen der PDF")
+            with st.expander("🔍 Details & PDF Download"):
+                c_left, c_right = st.columns([3, 1])
+                with c_left:
+                    st.write(f"**Sachverhalt:**\n{b_dec}")
+                    if z_dec != "-": st.write(f"**Beteiligte:** {z_dec}")
+                    st.write(f"📍 GPS: `{r['GPS']}`")
+                
+                with c_right:
+                    pdf_bytes = generate_pdf_bytes(r, b_dec, k_dec, z_dec)
+                    if pdf_bytes:
+                        st.download_button(
+                            label="📄 PDF Download",
+                            data=pdf_bytes,
+                            file_name=f"Bericht_{r['AZ']}.pdf",
+                            mime="application/pdf",
+                            key=f"dl_{i}"
+                        )
+                
+                if f_dec != "-": 
+                    st.image(base64.b64decode(f_dec), width=300)
+    else:
+        st.info("Keine Berichte gefunden.")
 
-            if f_dec != "-": st.image(base64.b64decode(f_dec), width=300)
+# Sidebar Admin
+with st.sidebar:
+    if st.checkbox("🔑 Admin"):
+        if st.text_input("Passwort", type="password") == ADMIN_PW:
+            st.session_state["admin_auth"] = True
+            st.success("Admin aktiv")
