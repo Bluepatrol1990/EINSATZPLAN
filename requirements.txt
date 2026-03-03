@@ -4,3 +4,4 @@ fpdf
 Pillow
 cryptography
 streamlit-js-eval
+streamlit-drawable-canvas
