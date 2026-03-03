@@ -10,14 +10,14 @@ import tempfile
 from cryptography.fernet import Fernet
 from streamlit_js_eval import get_geolocation
 
-# --- 1. SEITEN-KONFIGURATION (MUSS ganz oben stehen!) ---
+# --- 1. SEITEN-KONFIGURATION ---
 st.set_page_config(page_title="OA Augsburg Pro", page_icon="🚓", layout="wide")
 
-# --- 2. SESSION STATE INITIALISIEREN ---
+# --- 2. SESSION STATE ---
 if "auth" not in st.session_state:
     st.session_state["auth"] = False
 
-# --- 3. SICHERHEIT & VERSCHLÜSSELUNG ---
+# --- 3. SICHERHEIT & SECRETS ---
 try:
     DIENST_PW = st.secrets["dienst_password"]
     ADMIN_PW = st.secrets["admin_password"]
@@ -28,7 +28,6 @@ except:
     MASTER_KEY = "AugsburgSicherheit32ZeichenCheck!"
 
 def get_cipher():
-    # Erzeugt den AES-Schlüssel aus dem Master-Key (Sicherheits-Standard)
     key_64 = base64.urlsafe_b64encode(MASTER_KEY[:32].encode().ljust(32))
     return Fernet(key_64)
 
@@ -43,7 +42,7 @@ def entschluesseln(safe_text):
     except:
         return "[Entschlüsselungsfehler]"
 
-# --- 4. DATEN & STRASSEN AUGSBURG ---
+# --- 4. DATEN & STRASSEN ---
 DATEI = "zentral_archiv_secure.csv"
 STRASSEN_AUGSBURG = sorted([
     "Maximilianstraße", "Königsplatz", "Rathausplatz", "Moritzplatz", "Ulrichsplatz", 
@@ -77,7 +76,14 @@ def erstelle_pdf(row):
     pdf.set_font("Arial", "B", 14)
     pdf.cell(0, 10, f"Einsatzprotokoll - AZ: {row['AZ']}", ln=True); pdf.ln(5)
     pdf.set_font("Arial", "", 10)
-    pdf.multi_cell(0, 7, f"Datum: {row['Datum']}\nOrt: {row['Ort']} {row['Hausnummer']}\nGPS: {row['GPS']}\n\nBericht:\n{row['Bericht']}")
+    # PDF enthält nun auch die Endzeit und Zeugen
+    content = (f"Datum: {row['Datum']}\n"
+               f"Zeitraum: {row['Beginn']} bis {row['Ende']}\n"
+               f"Ort: {row['Ort']} {row['Hausnummer']}\n"
+               f"GPS: {row['GPS']}\n"
+               f"Zeugen/Beteiligte: {row['Zeugen']}\n\n"
+               f"Bericht:\n{row['Bericht']}")
+    pdf.multi_cell(0, 7, content)
     return pdf.output(dest='S').encode('latin-1')
 
 # --- 6. DIENST LOGIN ---
@@ -95,29 +101,35 @@ if not st.session_state["auth"]:
     st.stop()
 
 # --- 7. HAUPTSEITE ---
-st.title("📋 Mobiler Einsatzbericht")
+st.title("📋 Einsatzbericht") # Geändert von "Mobiler Einsatzbericht"
 
-# GPS abrufen (Wichtig: Erfordert streamlit-js-eval in requirements.txt)
+# GPS abrufen
 loc = get_geolocation()
 gps_ready = f"{loc['coords']['latitude']}, {loc['coords']['longitude']}" if loc else "-"
 
 def lade_daten():
+    spalten = ["Datum", "Beginn", "Ende", "Ort", "Hausnummer", "Zeugen", "Bericht", "AZ", "Foto", "Dienstkraft", "GPS"]
     if os.path.exists(DATEI):
         df = pd.read_csv(DATEI).astype(str)
+        # Fehlende Spalten ergänzen, falls Datei alt ist
+        for col in spalten:
+            if col not in df.columns: df[col] = "-"
+        # Entschlüsselung
         for col in ["Bericht", "Zeugen", "Foto"]:
             df[col] = df[col].apply(entschluesseln)
-        return df
-    return pd.DataFrame(columns=["Datum", "Beginn", "Ort", "Hausnummer", "Zeugen", "Bericht", "AZ", "Foto", "Dienstkraft", "GPS"])
+        return df[spalten]
+    return pd.DataFrame(columns=spalten)
 
 daten = lade_daten()
 
 # --- FORMULAR ---
 with st.expander("➕ NEUEN BERICHT SCHREIBEN", expanded=True):
     with st.form("main_form", clear_on_submit=True):
-        c1, c2, c3 = st.columns([1,1,2])
+        c1, c2, c3, c4 = st.columns([1,1,1,1])
         d = c1.date_input("Datum")
-        t = c2.time_input("Zeit")
-        gps_val = c3.text_input("📍 GPS Standort", value=gps_ready, disabled=True)
+        t_start = c2.time_input("Beginn")
+        t_ende = c3.time_input("Ende") # Neues Feld: Endzeit
+        gps_val = c4.text_input("📍 GPS", value=gps_ready, disabled=True)
         
         o1, o2, o3 = st.columns([3,1,2])
         ort_wahl = o1.selectbox("Straße / Ort (Augsburg)", options=STRASSEN_AUGSBURG, index=None, placeholder="Straße wählen...")
@@ -128,7 +140,7 @@ with st.expander("➕ NEUEN BERICHT SCHREIBEN", expanded=True):
         bericht = st.text_area("Sachverhalt (Tastatur-Mikrofon nutzen)", 
                                value=BAUSTEINE[auswahl] if auswahl != "Auswählen..." else "", height=150)
         
-        z = st.text_input("Beteiligte / Zeugen")
+        z = st.text_input("Beteiligte Personen / Zeugen")
         dk = st.text_input("DK Kürzel")
         f = st.file_uploader("📸 Foto zur Beweissicherung")
         
@@ -136,17 +148,17 @@ with st.expander("➕ NEUEN BERICHT SCHREIBEN", expanded=True):
             if bericht and ort_wahl:
                 f_b = "-"
                 if f:
-                    # FIX: Verhindert OSError durch Konvertierung in RGB (Wichtig für Handyfotos!)
                     img = Image.open(f)
-                    if img.mode in ("RGBA", "P"):
-                        img = img.convert("RGB")
+                    if img.mode in ("RGBA", "P"): img = img.convert("RGB")
                     img.thumbnail((800, 800))
                     buf = io.BytesIO()
                     img.save(buf, format="JPEG", quality=75)
                     f_b = base64.b64encode(buf.getvalue()).decode()
                 
-                new_row = [str(d), t.strftime("%H:%M"), str(ort_wahl), hsnr, verschluesseln(z), 
-                           verschluesseln(bericht), az, verschluesseln(f_b), dk, gps_ready]
+                # Alle Daten für die CSV vorbereiten (Zeugen & Bericht verschlüsselt)
+                new_row = [str(d), t_start.strftime("%H:%M"), t_ende.strftime("%H:%M"), 
+                           str(ort_wahl), hsnr, verschluesseln(z), verschluesseln(bericht), 
+                           az, verschluesseln(f_b), dk, gps_ready]
                 
                 new_df = pd.DataFrame([new_row], columns=daten.columns)
                 pd.concat([pd.read_csv(DATEI) if os.path.exists(DATEI) else pd.DataFrame(columns=daten.columns), new_df]).to_csv(DATEI, index=False)
@@ -156,12 +168,20 @@ with st.expander("➕ NEUEN BERICHT SCHREIBEN", expanded=True):
 st.divider()
 st.subheader("📂 Verschlüsseltes Archiv")
 for i, row in daten.iloc[::-1].iterrows():
+    # Titel der Kachel
     with st.expander(f"📍 {row['Ort']} | {row['Datum']} | AZ: {row['AZ']}"):
-        st.write(f"**Bericht:** {row['Bericht']}")
+        # Anzeige von Zeit und Zeugen im Archiv
+        c_arch1, c_arch2 = st.columns(2)
+        c_arch1.write(f"**⏱ Zeitraum:** {row['Beginn']} - {row['Ende']}")
+        c_arch2.write(f"**👥 Zeugen/Beteiligte:** {row['Zeugen']}")
+        
+        st.write(f"**📝 Sachverhalt:**")
+        st.info(row['Bericht'])
+        
         if row['Foto'] != "-":
             st.image(base64.b64decode(row['Foto']), width=300)
         
-        # PDF Export mit Kevin als Empfänger (Info-Hinweis)
+        # Admin / Kevin Bereich
         if st.sidebar.text_input(f"Admin Freigabe {row['AZ']}", type="password", key=f"adm_{i}") == ADMIN_PW:
-            st.write("Senden an: Kevin.woelki@augsburg.de | kevinworlki@outlook.de")
+            st.write("Empfänger: Kevin.woelki@augsburg.de")
             st.download_button("📄 PDF Export", data=erstelle_pdf(row), file_name=f"Bericht_{row['AZ']}.pdf")
