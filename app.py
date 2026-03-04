@@ -26,13 +26,10 @@ st.set_page_config(page_title="KOD Augsburg - Einsatzbericht", page_icon="🚓",
 # --- 2. CSS STYLING (SICHERHEIT & DESIGN) ---
 st.markdown("""
     <style>
-    /* 1. Standard-Elemente ausblenden */
     #MainMenu {visibility: hidden;}
     header {visibility: hidden;}
     footer {visibility: hidden;}
     
-    /* 2. 'Manage app' & Deploy-Buttons radikal entfernen */
-    /* Dies zielt auf die Toolbar und die Status-Widgets von Streamlit Cloud ab */
     [data-testid="stStatusWidget"], 
     [data-testid="stDecoration"], 
     [data-testid="stHeader"],
@@ -42,19 +39,14 @@ st.markdown("""
         display: none !important;
     }
 
-    /* Entfernt das 'View menu' (drei Punkte / Manage App) unten rechts */
     button[title="View menu"], 
     .stActionButton, 
-    #stConnectionStatus, 
-    .st-emotion-cache-zq5wms, /* Spezifischer Cloud-Selektor */
-    .st-emotion-cache-10pw50 { 
+    #stConnectionStatus { 
         display: none !important; 
     }
 
-    /* Versteckt die Sidebar komplett */
     [data-testid="stSidebar"] { display: none; }
 
-    /* FIXIERTER HEADER */
     .sticky-header {
         position: fixed; top: 0; left: 0; width: 100%;
         background-color: #004b95; color: white;
@@ -65,7 +57,6 @@ st.markdown("""
 
     .main-content { margin-top: 100px; }
 
-    /* ARCHIV KARTEN DESIGN */
     .report-card { 
         background-color: #ffffff; border-radius: 10px; padding: 20px; 
         border-left: 10px solid #004b95; margin-bottom: 15px; 
@@ -77,7 +68,6 @@ st.markdown("""
         border: 1px solid #eee; font-size: 0.9em;
     }
     
-    /* LOGIN BOX DESIGN */
     .login-box {
         text-align: center; padding: 30px; border: 2px solid #004b95; 
         border-radius: 15px; background-color: #f8f9fa; 
@@ -186,8 +176,12 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 with st.expander("📝 NEUEN BERICHT ANLEGEN", expanded=True):
+    # FEHLERBEHEBUNG GPS:
     loc = get_geolocation()
-    gps_val = f"{loc['coords']['latitude']}, {loc['coords']['longitude']}" if loc else "📍 GPS nicht erfasst"
+    if loc and 'coords' in loc:
+        gps_val = f"{loc['coords']['latitude']}, {loc['coords']['longitude']}"
+    else:
+        gps_val = "📍 GPS nicht erfasst"
     
     st.subheader("📍 Einsatzdetails")
     c1, c2, c3, c4 = st.columns(4)
