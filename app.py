@@ -23,14 +23,16 @@ RECIPIENTS = ["Kevin.woelki@augsburg.de", "kevinworlki@outlook.de"]
 
 st.set_page_config(page_title="KOD Augsburg - Einsatzbericht", page_icon="🚓", layout="wide") 
 
-# --- 2. CSS STYLING (INKL. STICKY HEADER) ---
+# --- 2. CSS STYLING (SICHERHEIT & STICKY HEADER) ---
 st.markdown("""
     <style>
-    /* Fixierter Header */
-    [data-testid="stHeader"] {
-        background-color: rgba(255, 255, 255, 0.0);
-    }
+    /* 1. ENTFERNT DIE STANDARD STREAMLIT LEISTE OBEN (SICHERHEIT) */
+    #MainMenu {visibility: hidden;}
+    header {visibility: hidden;}
+    footer {visibility: hidden;}
+    div.stDeployButton {display:none;}
     
+    /* 2. EIGENER FIXIERTER HEADER */
     .sticky-header {
         position: fixed;
         top: 0;
@@ -44,9 +46,9 @@ st.markdown("""
         box-shadow: 0 4px 10px rgba(0,0,0,0.3);
     }
 
-    /* Abstand für den Inhalt unter dem Header */
+    /* Abstand für den Inhalt unter dem neuen Header */
     .main-content {
-        margin-top: 100px;
+        margin-top: 80px;
     }
 
     .report-card { 
@@ -179,7 +181,7 @@ if not st.session_state["auth"]:
             else: st.error("❌ Passwort falsch.")
     st.stop()
 
-# --- 6. HAUPTPROGRAMM (MIT FIXIERTEM HEADER) ---
+# --- 6. HAUPTPROGRAMM (OHNE STANDARD-LEISTE) ---
 st.markdown("""
     <div class="sticky-header">
         <h2 style="margin:0;">📋 KOD Augsburg - Einsatzbericht</h2>
@@ -286,7 +288,7 @@ if os.path.exists(DATEI):
                     st.rerun()
             else: st.info("🔒 Admin nötig")
 
-# --- SIDEBAR ---
+# --- SIDEBAR (SICHTBAR FÜR EINSTELLUNGEN) ---
 with st.sidebar:
     st.title("🛡️ Administration")
     if st.checkbox("🔑 Admin-Modus"):
