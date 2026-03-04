@@ -23,16 +23,21 @@ RECIPIENTS = ["Kevin.woelki@augsburg.de", "kevinworlki@outlook.de"]
 
 st.set_page_config(page_title="KOD Augsburg - Einsatzbericht", page_icon="🚓", layout="wide") 
 
-# --- 2. CSS STYLING (SICHERHEIT & ARCHIV-DESIGN) ---
+# --- 2. CSS STYLING (SICHERHEIT & DESIGN) ---
 st.markdown("""
     <style>
-    /* SICHERHEIT: Streamlit-Standardelemente ausblenden */
+    /* SICHERHEIT: Streamlit-Standardelemente komplett entfernen */
     #MainMenu {visibility: hidden;}
     header {visibility: hidden;}
     footer {visibility: hidden;}
     div.stDeployButton {display:none;}
+    
+    /* MANAGE APP & STATUS-LEISTE ENTFERNEN */
     [data-testid="stDecoration"] {display:none !important;} 
     [data-testid="stStatusWidget"] {display:none !important;}
+    footer {display:none !important;}
+    
+    /* Versteckt die Sidebar komplett */
     [data-testid="stSidebar"] {display: none;}
 
     /* FIXIERTER HEADER */
@@ -58,7 +63,7 @@ st.markdown("""
         border: 1px solid #eee; font-size: 0.9em;
     }
     
-    /* LOGIN BOX */
+    /* LOGIN BOX DESIGN */
     .login-box {
         text-align: center; padding: 30px; border: 2px solid #004b95; 
         border-radius: 15px; background-color: #f8f9fa; 
@@ -123,7 +128,6 @@ def create_official_pdf(row_data):
     pdf.set_font("Arial", '', 11)
     pdf.multi_cell(0, 7, entschluesseln(row_data['Bericht']), border='T')
 
-    # Foto-Anlage in PDF
     img_enc = entschluesseln(row_data['Foto'])
     if img_enc != "-":
         pdf.add_page()
@@ -221,7 +225,7 @@ with st.expander("📝 NEUEN BERICHT ANLEGEN", expanded=True):
             st.success("✅ Bericht gespeichert.")
             st.rerun()
 
-# --- ARCHIV (WIE DAVOR) ---
+# --- ARCHIV ---
 st.divider()
 st.header("📂 Einsatzarchiv")
 if os.path.exists(DATEI):
@@ -262,7 +266,7 @@ if os.path.exists(DATEI):
                     df_archive.drop(idx).to_csv(DATEI, index=False)
                     st.rerun()
 
-# --- ADMIN LOGIN GANZ UNTEN ---
+# --- ADMIN LOGIN ---
 st.markdown("<br><br><br><hr>", unsafe_allow_html=True)
 with st.expander("🛡️ Administration"):
     if not st.session_state["admin_auth"]:
