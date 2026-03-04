@@ -23,39 +23,32 @@ RECIPIENTS = ["Kevin.woelki@augsburg.de", "kevinworlki@outlook.de"]
 
 st.set_page_config(page_title="KOD Augsburg - Einsatzbericht", page_icon="🚓", layout="wide") 
 
-# --- 2. MASSIVER CSS & JS BLOCK ZUM AUSBLENDEN VON SYSTEM-ELEMENTEN ---
+# --- 2. ULTIMATIVE SPERRE FÜR SYSTEM-ELEMENTE (CSS & JS) ---
 st.markdown("""
     <style>
-    /* Versteckt Standard-Elemente */
+    /* 1. Header & Footer komplett eliminieren */
     #MainMenu {visibility: hidden !important;}
-    header {visibility: hidden !important;}
-    footer {visibility: hidden !important;}
+    header {display: none !important;}
+    footer {display: none !important;}
     
-    /* Blockiert die untere rechte Ecke (Manage App / Streamlit Cloud Overlay) */
-    [data-testid="stStatusWidget"],
-    [data-testid="stDecoration"],
-    [data-testid="stHeader"],
-    .stAppDeployButton,
+    /* 2. Bekannte Streamlit Cloud Overlays blockieren */
     div[data-testid="stStatusWidget"],
-    .st-emotion-cache-1wbqy5l,
-    .st-emotion-cache-1647z74,
-    .st-emotion-cache-zt5igj,
-    .viewerBadge_container__1QS13,
-    .styles_viewerBadge__1yB_V,
+    [data-testid="stDecoration"],
+    .stAppDeployButton,
     iframe[title="manage-app"],
+    button[title="View menu"],
     #stConnectionStatus {
         display: none !important;
         visibility: hidden !important;
-        height: 0 !important;
-        width: 0 !important;
     }
 
-    /* Versteckt den Toolbar-Button oben rechts falls vorhanden */
-    .stActionButton { display: none !important; }
-    
-    /* Verhindert Scrollen zu entfernten Elementen */
-    .stApp { margin-bottom: -50px !important; }
+    /* 3. Den unteren Bereich der App abschneiden, um Overlays zu verbergen */
+    .stApp {
+        margin-bottom: -60px !important;
+        padding-bottom: 0 !important;
+    }
 
+    /* 4. Sticky Header Design */
     .sticky-header {
         position: fixed; top: 0; left: 0; width: 100%;
         background-color: #004b95; color: white;
@@ -64,38 +57,38 @@ st.markdown("""
         box-shadow: 0 4px 10px rgba(0,0,0,0.3);
     }
     .main-content { margin-top: 100px; }
+    
     .report-card { 
         background-color: #ffffff; border-radius: 10px; padding: 20px; 
         border-left: 10px solid #004b95; margin-bottom: 15px; 
         color: #333333; border: 1px solid #dddddd;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
     .metric-box {
         background-color: #f8f9fa; padding: 10px; border-radius: 5px; 
         border: 1px solid #eee; font-size: 0.9em;
     }
-    .login-box {
-        text-align: center; padding: 30px; border: 2px solid #004b95; 
-        border-radius: 15px; background-color: #f8f9fa; 
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-    }
     </style>
 
     <script>
-    // JavaScript Sicherheits-Check: Entfernt das Overlay nach dem Laden
-    const removeElements = () => {
-        const selectors = [
+    /* 5. MutationObserver: Löscht die 'Manage App' Leiste aktiv aus dem DOM */
+    const observer = new MutationObserver((mutations) => {
+        const toRemove = [
             'iframe[title="manage-app"]',
             '.stAppDeployButton',
             'div[data-testid="stStatusWidget"]',
-            'footer'
+            'footer',
+            '.viewerBadge_container__1QS13'
         ];
-        selectors.forEach(s => {
-            const el = document.querySelector(s);
-            if (el) el.remove();
+        toRemove.forEach(selector => {
+            const elements = document.querySelectorAll(selector);
+            elements.forEach(el => el.remove());
         });
-    };
-    setInterval(removeElements, 1000); // Prüft jede Sekunde
+    });
+
+    observer.observe(document.body, {
+        childList: true,
+        subtree: true
+    });
     </script>
     """, unsafe_allow_html=True) 
 
@@ -177,7 +170,7 @@ if not st.session_state["auth"]:
     _, col_mid, _ = st.columns([1, 1.5, 1])
     with col_mid:
         st.markdown("""
-            <div class="login-box">
+            <div class="login-box" style="text-align: center; padding: 30px; border: 2px solid #004b95; border-radius: 15px; background-color: #f8f9fa;">
                 <h1 style="font-size: 3em; margin-bottom: 0;">🔑</h1>
                 <h2 style="color: #004b95; margin-top: 10px;">Sicherheitsbereich</h2>
                 <hr style="border: 0.5px solid #004b95; width: 50%; margin: 20px auto;">
