@@ -23,25 +23,35 @@ RECIPIENTS = ["Kevin.woelki@augsburg.de", "kevinworlki@outlook.de"]
 
 st.set_page_config(page_title="KOD Augsburg - Einsatzbericht", page_icon="🚓", layout="wide") 
 
-# --- 2. CSS STYLING (SICHERHEIT & DESIGN) ---
+# --- 2. CSS STYLING (MAXIMALE AUSBLENDUNG VON SYSTEM-ELEMENTEN) ---
 st.markdown("""
     <style>
+    /* Versteckt das Hauptmenü, Header und Footer komplett */
     #MainMenu {visibility: hidden;}
     header {visibility: hidden;}
     footer {visibility: hidden;}
     
+    /* Versteckt alle Streamlit-spezifischen Buttons und Overlays (Manage App, etc.) */
     [data-testid="stStatusWidget"], 
     [data-testid="stDecoration"], 
     [data-testid="stHeader"],
     .stAppDeployButton,
     div.stDeployButton,
-    footer {
+    .stActionButton,
+    #stConnectionStatus,
+    iframe[title="manage-app"] {
         display: none !important;
     }
 
+    /* Entfernt den Abstand für das entfernte Header-Menü */
+    .stApp > header {
+        display: none !important;
+    }
+
+    /* Zusätzlicher Schutz gegen das Overlay unten rechts */
     button[title="View menu"], 
-    .stActionButton, 
-    #stConnectionStatus { 
+    .st-emotion-cache-1647z74, 
+    .st-emotion-cache-zt5igj { 
         display: none !important; 
     }
 
@@ -176,7 +186,6 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 with st.expander("📝 NEUEN BERICHT ANLEGEN", expanded=True):
-    # FEHLERBEHEBUNG GPS:
     loc = get_geolocation()
     if loc and 'coords' in loc:
         gps_val = f"{loc['coords']['latitude']}, {loc['coords']['longitude']}"
