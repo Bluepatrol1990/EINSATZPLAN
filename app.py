@@ -10,7 +10,7 @@ from cryptography.fernet import Fernet
 from streamlit_js_eval import get_geolocation 
 from fpdf import FPDF
 
-# --- 1. GLOBALE VARIABLEN ---
+# --- 1. GLOBALE VARIABLEN & KONFIGURATION ---
 DATEI = "zentral_archiv_secure.csv"
 LOGO_PFAD = "logo.png" 
 COLUMNS = ["Datum", "Beginn", "Ende", "Ort", "Hausnummer", "Zeugen", "Bericht", "AZ", "Foto", "GPS", "Kraefte"]
@@ -23,9 +23,10 @@ RECIPIENTS = ["Kevin.woelki@augsburg.de", "kevinworlki@outlook.de"]
 
 st.set_page_config(page_title="KOD Augsburg - Einsatzbericht", page_icon="🚓", layout="wide") 
 
-# --- 2. CSS STYLING ---
+# --- 2. CSS STYLING (SICHERHEIT & ARCHIV-DESIGN) ---
 st.markdown("""
     <style>
+    /* SICHERHEIT: Streamlit-Standardelemente ausblenden */
     #MainMenu {visibility: hidden;}
     header {visibility: hidden;}
     footer {visibility: hidden;}
@@ -34,6 +35,7 @@ st.markdown("""
     [data-testid="stStatusWidget"] {display:none !important;}
     [data-testid="stSidebar"] {display: none;}
 
+    /* FIXIERTER HEADER */
     .sticky-header {
         position: fixed; top: 0; left: 0; width: 100%;
         background-color: #004b95; color: white;
@@ -41,18 +43,31 @@ st.markdown("""
         border-bottom: 3px solid #ffcc00;
         box-shadow: 0 4px 10px rgba(0,0,0,0.3);
     }
+
     .main-content { margin-top: 100px; }
+
+    /* ARCHIV KARTEN DESIGN */
     .report-card { 
         background-color: #ffffff; border-radius: 10px; padding: 20px; 
         border-left: 10px solid #004b95; margin-bottom: 15px; 
-        border: 1px solid #dddddd; box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        color: #333333; border: 1px solid #dddddd;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
-    .metric-box { background-color: #f8f9fa; padding: 10px; border-radius: 5px; border: 1px solid #eee; }
-    .login-box { text-align: center; padding: 30px; border: 2px solid #004b95; border-radius: 15px; background-color: #f8f9fa; }
+    .metric-box {
+        background-color: #f8f9fa; padding: 10px; border-radius: 5px; 
+        border: 1px solid #eee; font-size: 0.9em;
+    }
+    
+    /* LOGIN BOX */
+    .login-box {
+        text-align: center; padding: 30px; border: 2px solid #004b95; 
+        border-radius: 15px; background-color: #f8f9fa; 
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
     </style>
     """, unsafe_allow_html=True) 
 
-# --- 3. VERSCHLÜSSELUNG ---
+# --- 3. SICHERHEITSFUNKTIONEN ---
 if "auth" not in st.session_state: st.session_state["auth"] = False
 if "admin_auth" not in st.session_state: st.session_state["admin_auth"] = False 
 
@@ -73,8 +88,6 @@ def entschluesseln(safe_text):
 def create_official_pdf(row_data):
     pdf = FPDF()
     pdf.add_page()
-    
-    # Header mit Logo
     if os.path.exists(LOGO_PFAD):
         pdf.image(LOGO_PFAD, x=160, y=10, w=35)
     
@@ -98,51 +111,36 @@ def create_official_pdf(row_data):
         pdf.set_font("Arial", '', 10)
         pdf.cell(145, 9, f" {value}", border=1, ln=True)
 
-    # Basis-Daten
     add_table_row("Aktenzeichen (AZ)", row_data['AZ'])
     add_table_row("Datum", row_data['Datum'])
     add_table_row("Zeitraum", f"{row_data['Beginn']} - {row_data['Ende']} Uhr")
     add_table_row("Einsatzort", f"{row_data['Ort']} {row_data['Hausnummer']}")
     add_table_row("Kräfte", entschluesseln(row_data['Kraefte']))
-    add_table_row("GPS-Daten", row_data['GPS'])
     
     pdf.ln(10)
     pdf.set_font("Arial", 'B', 12)
     pdf.cell(0, 10, "Sachverhalt / Feststellungen:", ln=True)
     pdf.set_font("Arial", '', 11)
     pdf.multi_cell(0, 7, entschluesseln(row_data['Bericht']), border='T')
-    
-    pdf.ln(5)
-    pdf.set_font("Arial", 'B', 12)
-    pdf.cell(0, 10, "Beteiligte / Zeugen:", ln=True)
-    pdf.set_font("Arial", '', 11)
-    pdf.multi_cell(0, 7, entschluesseln(row_data['Zeugen']), border='T')
 
-    # FOTO-ANLAGE (Falls vorhanden)
-    img_data_enc = entschluesseln(row_data['Foto'])
-    if img_data_enc != "-":
+    # Foto-Anlage in PDF
+    img_enc = entschluesseln(row_data['Foto'])
+    if img_enc != "-":
         pdf.add_page()
         pdf.set_font("Arial", 'B', 14)
         pdf.cell(0, 10, "Anlage: Beweismittelfoto", ln=True, align='C')
-        pdf.ln(10)
         try:
-            img_bytes = base64.b64decode(img_data_enc)
+            img_bytes = base64.b64decode(img_enc)
             with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
                 tmp.write(img_bytes)
                 tmp_path = tmp.name
-            # Bild skalieren, damit es auf die Seite passt
             pdf.image(tmp_path, x=20, y=40, w=170)
-            os.unlink(tmp_path) 
-        except Exception as e:
-            pdf.cell(0, 10, f"[Fehler beim Laden des Fotos: {e}]", ln=True)
+            os.unlink(tmp_path)
+        except: pass
 
-    pdf.set_y(-25)
-    pdf.set_font("Arial", 'I', 8)
-    pdf.cell(0, 10, f"Erstellt am: {datetime.now().strftime('%d.%m.%Y')} | Dokumenten-ID: {row_data['AZ']}", align='C')
-    
     return pdf.output(dest="S").encode("latin-1")
 
-# --- 5. LOGIN ---
+# --- 5. LOGIN (WIE DAVOR) ---
 if not st.session_state["auth"]:
     st.markdown("<br><br><br>", unsafe_allow_html=True)
     _, col_mid, _ = st.columns([1, 1.5, 1])
@@ -161,7 +159,7 @@ if not st.session_state["auth"]:
             st.rerun()
     st.stop()
 
-# --- 6. HAUPTSEITE ---
+# --- 6. HAUPTPROGRAMM ---
 st.markdown("""
     <div class="sticky-header">
         <h2 style="margin:0;">📋 KOD Augsburg - Einsatzbericht</h2>
@@ -188,7 +186,7 @@ with st.expander("📝 NEUEN BERICHT ANLEGEN", expanded=True):
     k_col1, k_col2, k_col3 = st.columns(3)
     with k_col1:
         pol_check = st.checkbox("🚔 Polizei")
-        funkkennung = st.text_input("🆔 Funkkennung", placeholder="Augsburg...") if pol_check else ""
+        funkkennung = st.text_input("🆔 Funkkennung") if pol_check else ""
     rtw_check = k_col2.checkbox("🚑 Rettungsdienst")
     fw_check = k_col3.checkbox("🚒 Feuerwehr")
 
@@ -208,7 +206,7 @@ with st.expander("📝 NEUEN BERICHT ANLEGEN", expanded=True):
                 img = Image.open(bild).convert("RGB")
                 img.thumbnail((1200, 1200))
                 buf = io.BytesIO()
-                img.save(buf, format="JPEG", quality=80)
+                img.save(buf, format="JPEG")
                 b64_img = base64.b64encode(buf.getvalue()).decode()
 
             new_data = {
@@ -220,10 +218,10 @@ with st.expander("📝 NEUEN BERICHT ANLEGEN", expanded=True):
             df = pd.read_csv(DATEI) if os.path.exists(DATEI) else pd.DataFrame(columns=COLUMNS)
             df = pd.concat([df, pd.DataFrame([new_data])], ignore_index=True)
             df.to_csv(DATEI, index=False)
-            st.success(f"✅ Bericht gespeichert.")
+            st.success("✅ Bericht gespeichert.")
             st.rerun()
 
-# --- ARCHIV ---
+# --- ARCHIV (WIE DAVOR) ---
 st.divider()
 st.header("📂 Einsatzarchiv")
 if os.path.exists(DATEI):
@@ -241,7 +239,7 @@ if os.path.exists(DATEI):
                 </div>
                 <hr style="margin: 10px 0;">
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                    <div class="metric-box">📍 <b>Einsatzort:</b> {row['Ort']} {row['Hausnummer']}</div>
+                    <div class="metric-box">📍 <b>Ort:</b> {row['Ort']} {row['Hausnummer']}</div>
                     <div class="metric-box">🕒 <b>Zeit:</b> {row['Beginn']} - {row['Ende']}</div>
                     <div class="metric-box">👮 <b>Kräfte:</b> {entschluesseln(row['Kraefte'])}</div>
                     <div class="metric-box">🌐 <b>GPS:</b> {row['GPS']}</div>
@@ -249,22 +247,22 @@ if os.path.exists(DATEI):
             </div>
         """, unsafe_allow_html=True)
         
-        with st.expander("👁️ Details anzeigen"):
-            st.info(f"**✍️ Sachverhalt:**\n{entschluesseln(row['Bericht'])}")
-            st.warning(f"**👥 Beteiligte:** {entschluesseln(row['Zeugen'])}")
+        with st.expander("👁️ Details & Aktionen"):
+            st.info(f"**Sachverhalt:**\n{entschluesseln(row['Bericht'])}")
+            st.warning(f"**Zeugen/Beteiligte:** {entschluesseln(row['Zeugen'])}")
             img_data = entschluesseln(row['Foto'])
             if img_data != "-": st.image(base64.b64decode(img_data), width=400)
             
             if st.session_state["admin_auth"]:
                 st.divider()
-                pdf_bytes = create_official_pdf(row)
                 c_pdf, c_del = st.columns(2)
-                c_pdf.download_button("📄 PDF Export", pdf_bytes, f"KOD_Bericht_{row['AZ']}.pdf", "application/pdf", key=f"pdf_{idx}")
-                if c_del.button("🗑️ Bericht löschen", key=f"del_{idx}"):
+                pdf_bytes = create_official_pdf(row)
+                c_pdf.download_button("📄 Amtliches PDF", pdf_bytes, f"KOD_{row['AZ']}.pdf", "application/pdf", key=f"p_{idx}")
+                if c_del.button("🗑️ Löschen", key=f"d_{idx}"):
                     df_archive.drop(idx).to_csv(DATEI, index=False)
                     st.rerun()
 
-# --- ADMIN LOGIN ---
+# --- ADMIN LOGIN GANZ UNTEN ---
 st.markdown("<br><br><br><hr>", unsafe_allow_html=True)
 with st.expander("🛡️ Administration"):
     if not st.session_state["admin_auth"]:
