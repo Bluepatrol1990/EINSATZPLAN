@@ -22,39 +22,44 @@ MASTER_KEY = st.secrets.get("master_key", "AugsburgSicherheit32ZeichenCheck!")
 
 st.set_page_config(page_title="KOD Augsburg - Einsatzbericht", page_icon="🚓", layout="wide") 
 
-# --- 2. DARK MODE & CSS STYLING ---
+# --- 2. DARK MODE & WEISSE SCHRIFT ---
 st.markdown("""
     <style>
     /* Dark Mode Grundgerüst */
     .stApp {
         background-color: #0e1117;
-        color: #ffffff;
+        color: #ffffff !important;
     }
+    
+    /* Alle Standard-Texte auf Weiß zwingen */
+    h1, h2, h3, p, span, label, .stMarkdown {
+        color: #ffffff !important;
+    }
+
     .report-card { 
         background-color: #1e2128; 
         border-radius: 10px; 
         padding: 20px; 
         border-left: 10px solid #004b95; 
         margin-bottom: 15px; 
-        color: #ffffff;
+        color: #ffffff !important;
         border: 1px solid #333333;
         box-shadow: 0 4px 6px rgba(0,0,0,0.3);
     }
+
     .metric-box {
         background-color: #262730;
         padding: 10px;
         border-radius: 5px;
         border: 1px solid #444;
-        color: #eeeeee;
+        color: #ffffff !important;
     }
-    .login-container {
-        text-align: center;
-        padding: 50px;
-        border-radius: 15px;
-        background-color: #1e2128;
-        border: 1px solid #333;
-        margin-top: 100px;
+
+    /* Falls ein Element einen weißen Hintergrund hat (z.B. Tooltips), Schrift schwarz */
+    .white-bg-text {
+        color: #000000 !important;
     }
+
     /* Header-Bereinigung */
     header {visibility: hidden;}
     #MainMenu {visibility: hidden;}
@@ -144,32 +149,18 @@ def create_official_pdf(row_data):
     pdf.cell(0, 10, f"Erstellt: {datetime.now().strftime('%d.%m.%Y')} | Augsburg", align='C')
     return pdf.output(dest="S").encode("latin-1")
 
-# --- 5. LOGIN (VERSTECKT ALLES ANDERE) ---
+# --- 5. LOGIN ---
 if not st.session_state["auth"]:
     _, col_center, _ = st.columns([1, 2, 1])
     with col_center:
-        st.markdown('<div class="login-container">', unsafe_allow_html=True)
-        st.markdown("# 🔒")
-        st.title("Sicherheitsbereich")
-        st.subheader("KOD Augsburg")
-        pw_input = st.text_input("Dienstpasswort", type="password", key="main_login")
+        st.markdown('<div style="text-align:center; margin-top:100px;"><h1>🔒</h1><h2>Sicherheitsbereich</h2></div>', unsafe_allow_html=True)
+        pw_input = st.text_input("Dienstpasswort", type="password")
         if pw_input == DIENST_PW:
             st.session_state["auth"] = True
             st.rerun()
-        elif pw_input != "":
-            st.error("Zugriff verweigert")
-        st.markdown('</div>', unsafe_allow_html=True)
-    
-    # Admin-Login trotzdem in Sidebar ermöglichen
-    with st.sidebar:
-        st.subheader("🛡️ Admin")
-        admin_check = st.text_input("Admin-Key", type="password", key="sidebar_admin")
-        if admin_check == ADMIN_PW:
-            st.session_state["admin_auth"] = True
-            st.success("Admin autorisiert")
     st.stop()
 
-# --- HAUPTAPP (ERST NACH LOGIN SICHTBAR) ---
+# --- HAUPTAPP ---
 st.title("📋 Einsatzbericht")
 
 with st.expander("📝 NEUEN BERICHT ANLEGEN", expanded=True):
@@ -193,7 +184,7 @@ with st.expander("📝 NEUEN BERICHT ANLEGEN", expanded=True):
         pol_check = st.checkbox("🚔 Polizei")
         funkkennung = ""
         if pol_check:
-            funkkennung = st.text_input("🆔 Funkkennung", placeholder="z.B. Augsburg 12/1")
+            funkkennung = st.text_input("🆔 Funkkennung")
     
     rtw_check = k_col2.checkbox("🚑 Rettungsdienst")
     fw_check = k_col3.checkbox("🚒 Feuerwehr")
@@ -245,7 +236,7 @@ if os.path.exists(DATEI):
         st.markdown(f"""
             <div class="report-card">
                 <div style="display: flex; justify-content: space-between;">
-                    <span style="font-size: 1.2em;">📂 <strong>AZ: {row['AZ']}</strong></span>
+                    <span>📂 <strong>AZ: {row['AZ']}</strong></span>
                     <span>📅 {row['Datum']}</span>
                 </div>
                 <hr style="margin: 10px 0; border-color: #444;">
@@ -261,8 +252,8 @@ if os.path.exists(DATEI):
         c_det, c_admin_only = st.columns([3, 1])
         with c_det:
             with st.expander("👁️ Details anzeigen"):
-                st.info(f"**✍️ Sachverhalt:**\n{entschluesseln(row['Bericht'])}")
-                st.warning(f"**👥 Beteiligte:** {entschluesseln(row['Zeugen'])}")
+                st.info(f"**Sachverhalt:**\n{entschluesseln(row['Bericht'])}")
+                st.warning(f"**Beteiligte:** {entschluesseln(row['Zeugen'])}")
                 img_data = entschluesseln(row['Foto'])
                 if img_data != "-": st.image(base64.b64decode(img_data), width=400)
         
@@ -273,24 +264,25 @@ if os.path.exists(DATEI):
                 if st.button("🗑️ Löschen", key=f"del_{idx}"):
                     df_archive.drop(idx).to_csv(DATEI, index=False)
                     st.rerun()
-            else:
-                st.info("🔒 Admin-Login erforderlich für Export/Löschen")
 
-# --- SIDEBAR (ADMIN-LOGIN WÄHREND DER NUTZUNG) ---
-with st.sidebar:
-    st.title("⚙️ Einstellungen")
-    if not st.session_state["admin_auth"]:
-        admin_login = st.text_input("🔑 Admin-Login", type="password", key="sidebar_active")
-        if admin_login == ADMIN_PW:
-            st.session_state["admin_auth"] = True
-            st.rerun()
-    else:
-        st.success("Admin-Status: Aktiv")
-        if st.button("Abmelden (Admin)"):
-            st.session_state["admin_auth"] = False
-            st.rerun()
-    
-    if st.button("Logout (Gesamt)"):
-        st.session_state["auth"] = False
-        st.session_state["admin_auth"] = False
-        st.rerun()
+# --- ADMIN LOGIN GANZ UNTEN ---
+st.write("")
+st.write("")
+st.divider()
+with st.container():
+    c1, c2, c3 = st.columns([2, 1, 2])
+    with c2:
+        if not st.session_state["admin_auth"]:
+            if st.button("🛡️ Admin-Anmeldung"):
+                st.session_state["show_admin_login"] = True
+            
+            if st.session_state.get("show_admin_login", False):
+                adm_input = st.text_input("Admin-Passwort", type="password")
+                if adm_input == ADMIN_PW:
+                    st.session_state["admin_auth"] = True
+                    st.session_state["show_admin_login"] = False
+                    st.rerun()
+        else:
+            if st.button("🚪 Admin Logout"):
+                st.session_state["admin_auth"] = False
+                st.rerun()
