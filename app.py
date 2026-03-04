@@ -18,8 +18,8 @@ ADMIN_PW = "admin789"
 DIENST_PW = st.secrets.get("dienst_password", "1234")
 MASTER_KEY = st.secrets.get("master_key", "AugsburgSicherheit32ZeichenCheck!")
 
-# Empfänger gemäß Hinterlegung
-RECIPIENTS = ["Kevin.woelki@augsburg.de", "kevinworlki@outlook.de"]
+# Hinterlegte Empfänger (für spätere Verwendung)
+# Kevin.woelki@augsburg.de | kevinwoelki@outlook.de
 
 st.set_page_config(page_title="KOD Augsburg - Einsatzbericht", page_icon="🚓", layout="wide") 
 
@@ -42,7 +42,6 @@ st.markdown("""
         border-radius: 5px;
         border: 1px solid #eee;
     }
-    .stCheckbox { margin-bottom: -15px; }
     </style>
     """, unsafe_allow_html=True) 
 
@@ -109,7 +108,6 @@ def create_official_pdf(row_data):
     pdf.set_font("Arial", '', 11)
     pdf.multi_cell(0, 7, entschluesseln(row_data['Zeugen']), border='T')
 
-    # Foto-Anlage
     akt_foto = entschluesseln(row_data['Foto'])
     if akt_foto != "-":
         pdf.add_page()
@@ -132,12 +130,9 @@ def create_official_pdf(row_data):
 # --- 5. APP LOGIK ---
 if not st.session_state["auth"]:
     st.title("🚓 KOD Augsburg")
-    pw_input = st.text_input("🔑 Dienstpasswort", type="password")
-    if pw_input == DIENST_PW:
+    if st.text_input("🔑 Dienstpasswort", type="password") == DIENST_PW:
         st.session_state["auth"] = True
         st.rerun()
-    elif pw_input:
-        st.error("Falsches Passwort")
     st.stop()
 
 st.title("📋 Einsatzbericht")
@@ -161,8 +156,6 @@ with st.expander("📝 NEUEN BERICHT ANLEGEN", expanded=True):
 
         st.subheader("👮 Beteiligte Behörden")
         k_col1, k_col2, k_col3 = st.columns(3)
-        
-        # DYNAMISCHES TEXTFELD FÜR POLIZEI
         with k_col1:
             pol_check = st.checkbox("🚔 Polizei")
             funkkennung = ""
@@ -178,15 +171,11 @@ with st.expander("📝 NEUEN BERICHT ANLEGEN", expanded=True):
         bild = st.file_uploader("📸 Beweisfoto hochladen", type=["jpg", "png", "jpeg"])
 
         if st.form_submit_button("✅ BERICHT SPEICHERN"):
-            # Kräfte-String zusammenbauen
             k_list = ["KOD"]
-            if pol_check:
-                p_str = f"Polizei ({funkkennung})" if funkkennung else "Polizei"
-                k_list.append(p_str)
+            if pol_check: k_list.append(f"Polizei ({funkkennung})" if funkkennung else "Polizei")
             if rtw_check: k_list.append("Rettungsdienst")
             if fw_check: k_list.append("Feuerwehr")
             
-            # Bildverarbeitung
             b64_img = "-"
             if bild:
                 img = Image.open(bild).convert("RGB")
@@ -205,7 +194,7 @@ with st.expander("📝 NEUEN BERICHT ANLEGEN", expanded=True):
             df = pd.read_csv(DATEI) if os.path.exists(DATEI) else pd.DataFrame(columns=COLUMNS)
             df = pd.concat([df, pd.DataFrame([new_data])], ignore_index=True)
             df.to_csv(DATEI, index=False)
-            st.success(f"✅ Bericht gespeichert. (Interner Versand an: {', '.join(RECIPIENTS)})")
+            st.success("✅ Bericht wurde im Archiv gespeichert.")
             st.rerun()
 
 # --- ARCHIV ---
@@ -227,7 +216,7 @@ if os.path.exists(DATEI):
                 </div>
                 <hr style="margin: 10px 0;">
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                    <div class="metric-box">📍 <b>Ort:</b> {row['Ort']} {row['Hausnummer']}</div>
+                    <div class="metric-box">📍 <b>Einsatzort:</b> {row['Ort']} {row['Hausnummer']}</div>
                     <div class="metric-box">🕒 <b>Zeit:</b> {row['Beginn']} - {row['Ende']}</div>
                     <div class="metric-box">👮 <b>Kräfte:</b> {entschluesseln(row['Kraefte'])}</div>
                     <div class="metric-box">🌐 <b>GPS:</b> {row['GPS']}</div>
@@ -253,7 +242,7 @@ if os.path.exists(DATEI):
                     df_archive.drop(idx).to_csv(DATEI, index=False)
                     st.rerun()
 
-# --- ADMIN SEITE ---
+# --- ADMIN ---
 with st.sidebar:
     st.title("🛡️ Administration")
     if st.checkbox("🔑 Admin-Modus"):
