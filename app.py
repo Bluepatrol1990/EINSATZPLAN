@@ -18,48 +18,43 @@ ADMIN_PW = "admin789"
 DIENST_PW = "1990" 
 MASTER_KEY = st.secrets.get("master_key", "AugsburgSicherheit32ZeichenCheck!")
 
-# Empfänger: Kevin.woelki@augsburg.de und kevinworlki@outlook.de
+# Empfänger gemäß Anweisung: "Kevin.woelki@augsburg.de" und "kevinworlki@outlook.de"
 
 st.set_page_config(page_title="KOD Augsburg - Einsatzbericht", page_icon="🚓", layout="wide") 
 
-# --- 2. EXTREMES DARK MODE CSS (ALLE FELDER WEISS) ---
+# --- 2. KORRIGIERTES CSS FÜR SCHWARZE INPUTS ---
 st.markdown("""
     <style>
-    /* Dark Mode Hintergrund */
+    /* Dark Mode Grundgerüst */
     .stApp {
         background-color: #0e1117;
     }
     
-    /* 1. ALLE Texte auf Weiß (Labels, Titel, Markdowns) */
-    h1, h2, h3, p, span, label, div, .stMarkdown, .stCheckbox, p {
+    /* Alle Texte auf Weiß */
+    h1, h2, h3, p, span, label, .stMarkdown, .stCheckbox {
         color: #ffffff !important;
     }
 
-    /* 2. ALLE Eingabefelder (Text, Area, Date, Time, Number) */
-    input, textarea, select, .stTextInput>div>div>input, .stTextArea>div>div>textarea {
+    /* NEUEN BERICHT ANLEGEN - Expander Hintergrund */
+    .streamlit-expanderHeader {
+        background-color: #1e2128 !important;
+        color: white !important;
+    }
+
+    /* SCHWARZER HINTERGRUND FÜR ALLE INPUTS (Besonders Beginn/Ende) */
+    input, textarea, [data-baseweb="input"], [data-baseweb="select"] > div {
+        background-color: #000000 !important;
         color: #ffffff !important;
-        background-color: #262730 !important;
-        -webkit-text-fill-color: #ffffff !important; /* Wichtig für Safari/Chrome */
+        border: 1px solid #444 !important;
     }
 
-    /* 3. Speziell für Datums- und Zeit-Inputs (Streamlit Widgets) */
-    div[data-baseweb="input"] > div {
-        background-color: #262730 !important;
+    /* Spezifisch für Zeit- und Datumswähler von Streamlit */
+    div[data-baseweb="input"] input {
         color: #ffffff !important;
-    }
-    
-    /* 4. Platzhalter-Text (grau-weiß statt schwarz) */
-    ::placeholder {
-        color: #aaaaaa !important;
-        opacity: 1;
+        -webkit-text-fill-color: #ffffff !important;
     }
 
-    /* 5. Icons in den Feldern (Kalender, Uhr) */
-    svg {
-        fill: #ffffff !important;
-    }
-
-    /* 6. Cards & Boxen */
+    /* Report Cards im Archiv */
     .report-card { 
         background-color: #1e2128; 
         border-radius: 10px; 
@@ -70,10 +65,11 @@ st.markdown("""
     }
 
     .metric-box {
-        background-color: #262730;
+        background-color: #000000;
         padding: 10px;
         border-radius: 5px;
-        border: 1px solid #444;
+        border: 1px solid #333;
+        color: #ffffff !important;
     }
 
     /* Header ausblenden */
@@ -200,7 +196,7 @@ with st.expander("📝 NEUEN BERICHT ANLEGEN", expanded=True):
         pol_check = st.checkbox("🚔 Polizei")
         funkkennung = ""
         if pol_check:
-            funkkennung = st.text_input("🆔 Funkkennung", placeholder="z.B. Augsburg 12/1")
+            funkkennung = st.text_input("🆔 Funkkennung", placeholder="Augsburg xx/x")
     
     rtw_check = k_col2.checkbox("🚑 Rettungsdienst")
     fw_check = k_col3.checkbox("🚒 Feuerwehr")
@@ -280,8 +276,6 @@ if os.path.exists(DATEI):
                 if st.button("🗑️ Löschen", key=f"del_{idx}"):
                     df_archive.drop(idx).to_csv(DATEI, index=False)
                     st.rerun()
-            else:
-                st.info("🔒 Admin-Bereich")
 
 # --- ADMIN LOGIN GANZ UNTEN ---
 st.write("")
@@ -293,7 +287,7 @@ with c2:
             st.session_state["show_admin_login"] = True
         
         if st.session_state.get("show_admin_login", False):
-            adm_input = st.text_input("Admin-Passwort", type="password", key="admin_key_bottom")
+            adm_input = st.text_input("Admin-Passwort", type="password", key="adm_final")
             if adm_input == ADMIN_PW:
                 st.session_state["admin_auth"] = True
                 st.session_state["show_admin_login"] = False
