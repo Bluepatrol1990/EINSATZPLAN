@@ -23,39 +23,38 @@ RECIPIENTS = ["Kevin.woelki@augsburg.de", "kevinworlki@outlook.de"]
 
 st.set_page_config(page_title="KOD Augsburg - Einsatzbericht", page_icon="🚓", layout="wide") 
 
-# --- 2. CSS STYLING (MAXIMALE AUSBLENDUNG VON SYSTEM-ELEMENTEN) ---
+# --- 2. MASSIVER CSS & JS BLOCK ZUM AUSBLENDEN VON SYSTEM-ELEMENTEN ---
 st.markdown("""
     <style>
-    /* Versteckt das Hauptmenü, Header und Footer komplett */
-    #MainMenu {visibility: hidden;}
-    header {visibility: hidden;}
-    footer {visibility: hidden;}
+    /* Versteckt Standard-Elemente */
+    #MainMenu {visibility: hidden !important;}
+    header {visibility: hidden !important;}
+    footer {visibility: hidden !important;}
     
-    /* Versteckt alle Streamlit-spezifischen Buttons und Overlays (Manage App, etc.) */
-    [data-testid="stStatusWidget"], 
-    [data-testid="stDecoration"], 
+    /* Blockiert die untere rechte Ecke (Manage App / Streamlit Cloud Overlay) */
+    [data-testid="stStatusWidget"],
+    [data-testid="stDecoration"],
     [data-testid="stHeader"],
     .stAppDeployButton,
-    div.stDeployButton,
-    .stActionButton,
-    #stConnectionStatus,
-    iframe[title="manage-app"] {
+    div[data-testid="stStatusWidget"],
+    .st-emotion-cache-1wbqy5l,
+    .st-emotion-cache-1647z74,
+    .st-emotion-cache-zt5igj,
+    .viewerBadge_container__1QS13,
+    .styles_viewerBadge__1yB_V,
+    iframe[title="manage-app"],
+    #stConnectionStatus {
         display: none !important;
+        visibility: hidden !important;
+        height: 0 !important;
+        width: 0 !important;
     }
 
-    /* Entfernt den Abstand für das entfernte Header-Menü */
-    .stApp > header {
-        display: none !important;
-    }
-
-    /* Zusätzlicher Schutz gegen das Overlay unten rechts */
-    button[title="View menu"], 
-    .st-emotion-cache-1647z74, 
-    .st-emotion-cache-zt5igj { 
-        display: none !important; 
-    }
-
-    [data-testid="stSidebar"] { display: none; }
+    /* Versteckt den Toolbar-Button oben rechts falls vorhanden */
+    .stActionButton { display: none !important; }
+    
+    /* Verhindert Scrollen zu entfernten Elementen */
+    .stApp { margin-bottom: -50px !important; }
 
     .sticky-header {
         position: fixed; top: 0; left: 0; width: 100%;
@@ -64,9 +63,7 @@ st.markdown("""
         border-bottom: 3px solid #ffcc00;
         box-shadow: 0 4px 10px rgba(0,0,0,0.3);
     }
-
     .main-content { margin-top: 100px; }
-
     .report-card { 
         background-color: #ffffff; border-radius: 10px; padding: 20px; 
         border-left: 10px solid #004b95; margin-bottom: 15px; 
@@ -77,13 +74,29 @@ st.markdown("""
         background-color: #f8f9fa; padding: 10px; border-radius: 5px; 
         border: 1px solid #eee; font-size: 0.9em;
     }
-    
     .login-box {
         text-align: center; padding: 30px; border: 2px solid #004b95; 
         border-radius: 15px; background-color: #f8f9fa; 
         box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     }
     </style>
+
+    <script>
+    // JavaScript Sicherheits-Check: Entfernt das Overlay nach dem Laden
+    const removeElements = () => {
+        const selectors = [
+            'iframe[title="manage-app"]',
+            '.stAppDeployButton',
+            'div[data-testid="stStatusWidget"]',
+            'footer'
+        ];
+        selectors.forEach(s => {
+            const el = document.querySelector(s);
+            if (el) el.remove();
+        });
+    };
+    setInterval(removeElements, 1000); // Prüft jede Sekunde
+    </script>
     """, unsafe_allow_html=True) 
 
 # --- 3. SICHERHEITSFUNKTIONEN ---
