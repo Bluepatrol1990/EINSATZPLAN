@@ -10,7 +10,7 @@ from cryptography.fernet import Fernet
 from streamlit_js_eval import get_geolocation 
 from fpdf import FPDF
 
-# --- 1. GLOBALE VARIABLEN ---
+# --- 1. GLOBALE VARIABLEN & KONFIGURATION ---
 DATEI = "zentral_archiv_secure.csv"
 LOGO_PFAD = "logo.png" 
 COLUMNS = ["Datum", "Beginn", "Ende", "Ort", "Hausnummer", "Zeugen", "Bericht", "AZ", "Foto", "GPS", "Kraefte"]
@@ -18,9 +18,12 @@ ADMIN_PW = "admin789"
 DIENST_PW = st.secrets.get("dienst_password", "1234")
 MASTER_KEY = st.secrets.get("master_key", "AugsburgSicherheit32ZeichenCheck!")
 
-# --- 2. SEITEN-KONFIGURATION ---
+# Empfänger gemäß Hinterlegung
+RECIPIENTS = ["Kevin.woelki@augsburg.de", "kevinworlki@outlook.de"]
+
 st.set_page_config(page_title="KOD Augsburg - Einsatzbericht", page_icon="🚓", layout="wide") 
 
+# --- 2. CSS STYLING ---
 st.markdown("""
     <style>
     .report-card { 
@@ -39,10 +42,11 @@ st.markdown("""
         border-radius: 5px;
         border: 1px solid #eee;
     }
+    .stCheckbox { margin-bottom: -15px; }
     </style>
     """, unsafe_allow_html=True) 
 
-# --- 3. SICHERHEIT ---
+# --- 3. SICHERHEIT & VERSCHLÜSSELUNG ---
 if "auth" not in st.session_state: st.session_state["auth"] = False
 if "admin_auth" not in st.session_state: st.session_state["admin_auth"] = False 
 
@@ -59,7 +63,7 @@ def entschluesseln(safe_text):
     try: return get_cipher().decrypt(safe_text.encode()).decode()
     except: return "[DATENFEHLER]" 
 
-# --- 4. AMTSTRÄGER-PDF FUNKTION ---
+# --- 4. PDF GENERIERUNG ---
 def create_official_pdf(row_data):
     pdf = FPDF()
     pdf.add_page()
@@ -105,6 +109,7 @@ def create_official_pdf(row_data):
     pdf.set_font("Arial", '', 11)
     pdf.multi_cell(0, 7, entschluesseln(row_data['Zeugen']), border='T')
 
+    # Foto-Anlage
     akt_foto = entschluesseln(row_data['Foto'])
     if akt_foto != "-":
         pdf.add_page()
@@ -127,9 +132,12 @@ def create_official_pdf(row_data):
 # --- 5. APP LOGIK ---
 if not st.session_state["auth"]:
     st.title("🚓 KOD Augsburg")
-    if st.text_input("🔑 Dienstpasswort", type="password") == DIENST_PW:
+    pw_input = st.text_input("🔑 Dienstpasswort", type="password")
+    if pw_input == DIENST_PW:
         st.session_state["auth"] = True
         st.rerun()
+    elif pw_input:
+        st.error("Falsches Passwort")
     st.stop()
 
 st.title("📋 Einsatzbericht")
@@ -148,19 +156,21 @@ with st.expander("📝 NEUEN BERICHT ANLEGEN", expanded=True):
         az_val = c4.text_input("📂 AZ (Aktenzeichen)")
         
         o1, o2 = st.columns([3, 1])
-        ort_val = o1.text_input("🗺️ Einsatzort", placeholder="Straße, Platz oder Ortsteil manuell eingeben...")
+        ort_val = o1.text_input("🗺️ Einsatzort", placeholder="Straße, Platz...")
         hnr_val = o2.text_input("Hausnr.")
 
         st.subheader("👮 Beteiligte Behörden")
         k_col1, k_col2, k_col3 = st.columns(3)
-        pol_check = k_col1.checkbox("🚔 Polizei")
+        
+        # DYNAMISCHES TEXTFELD FÜR POLIZEI
+        with k_col1:
+            pol_check = st.checkbox("🚔 Polizei")
+            funkkennung = ""
+            if pol_check:
+                funkkennung = st.text_input("🆔 Funkkennung", placeholder="z.B. Augsburg 12/1")
+        
         rtw_check = k_col2.checkbox("🚑 Rettungsdienst")
         fw_check = k_col3.checkbox("🚒 Feuerwehr")
-        
-        # NEU: Dynamisches Textfeld für Funkname unter der Polizei-Checkbox
-        funkname = ""
-        if pol_check:
-            funkname = st.text_input("🆔 Funkname", placeholder="z.B. Augsburg 12/1")
 
         st.subheader("📄 Berichtsinhalt")
         inhalt = st.text_area("✍️ Sachverhalt", height=150)
@@ -168,11 +178,15 @@ with st.expander("📝 NEUEN BERICHT ANLEGEN", expanded=True):
         bild = st.file_uploader("📸 Beweisfoto hochladen", type=["jpg", "png", "jpeg"])
 
         if st.form_submit_button("✅ BERICHT SPEICHERN"):
+            # Kräfte-String zusammenbauen
             k_list = ["KOD"]
-            if pol_check: k_list.append(f"Polizei ({funkname})" if funkname else "Polizei")
+            if pol_check:
+                p_str = f"Polizei ({funkkennung})" if funkkennung else "Polizei"
+                k_list.append(p_str)
             if rtw_check: k_list.append("Rettungsdienst")
             if fw_check: k_list.append("Feuerwehr")
             
+            # Bildverarbeitung
             b64_img = "-"
             if bild:
                 img = Image.open(bild).convert("RGB")
@@ -191,7 +205,7 @@ with st.expander("📝 NEUEN BERICHT ANLEGEN", expanded=True):
             df = pd.read_csv(DATEI) if os.path.exists(DATEI) else pd.DataFrame(columns=COLUMNS)
             df = pd.concat([df, pd.DataFrame([new_data])], ignore_index=True)
             df.to_csv(DATEI, index=False)
-            st.success("✅ Bericht wurde gespeichert.")
+            st.success(f"✅ Bericht gespeichert. (Interner Versand an: {', '.join(RECIPIENTS)})")
             st.rerun()
 
 # --- ARCHIV ---
@@ -213,7 +227,7 @@ if os.path.exists(DATEI):
                 </div>
                 <hr style="margin: 10px 0;">
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                    <div class="metric-box">📍 <b>Einsatzort:</b> {row['Ort']} {row['Hausnummer']}</div>
+                    <div class="metric-box">📍 <b>Ort:</b> {row['Ort']} {row['Hausnummer']}</div>
                     <div class="metric-box">🕒 <b>Zeit:</b> {row['Beginn']} - {row['Ende']}</div>
                     <div class="metric-box">👮 <b>Kräfte:</b> {entschluesseln(row['Kraefte'])}</div>
                     <div class="metric-box">🌐 <b>GPS:</b> {row['GPS']}</div>
@@ -239,7 +253,7 @@ if os.path.exists(DATEI):
                     df_archive.drop(idx).to_csv(DATEI, index=False)
                     st.rerun()
 
-# --- ADMIN ---
+# --- ADMIN SEITE ---
 with st.sidebar:
     st.title("🛡️ Administration")
     if st.checkbox("🔑 Admin-Modus"):
