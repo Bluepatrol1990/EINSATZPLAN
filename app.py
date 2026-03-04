@@ -10,7 +10,7 @@ from cryptography.fernet import Fernet
 from streamlit_js_eval import get_geolocation 
 from fpdf import FPDF
 
-# --- 1. GLOBALE VARIABLEN ---
+# --- 1. GLOBALE VARIABLEN & KONFIGURATION ---
 DATEI = "zentral_archiv_secure.csv"
 LOGO_PFAD = "logo.png" 
 COLUMNS = ["Datum", "Beginn", "Ende", "Ort", "Hausnummer", "Zeugen", "Bericht", "AZ", "Foto", "GPS", "Kraefte"]
@@ -18,9 +18,9 @@ ADMIN_PW = "admin789"
 DIENST_PW = "1990" 
 MASTER_KEY = st.secrets.get("master_key", "AugsburgSicherheit32ZeichenCheck!")
 
-st.set_page_config(page_title="KOD Augsburg - Einsatzbericht", page_icon="🚓", layout="wide") 
+st.set_page_config(page_title="KOD Augsburg - Dienst-Login", page_icon="🚓", layout="wide") 
 
-# --- 2. CSS STYLING ---
+# --- 2. CSS STYLING (Inkl. professionellem Login-Zentrierer) ---
 st.markdown("""
     <style>
     .report-card { 
@@ -39,10 +39,15 @@ st.markdown("""
         border-radius: 5px;
         border: 1px solid #eee;
     }
+    /* Login-Zentrierung */
+    .stTextInput {
+        max-width: 400px;
+        margin: 0 auto;
+    }
     </style>
     """, unsafe_allow_html=True) 
 
-# --- 3. SICHERHEIT ---
+# --- 3. SICHERHEIT & VERSCHLÜSSELUNG ---
 if "auth" not in st.session_state: st.session_state["auth"] = False
 if "admin_auth" not in st.session_state: st.session_state["admin_auth"] = False 
 
@@ -124,23 +129,35 @@ def create_official_pdf(row_data):
     pdf.cell(0, 10, f"Erstellt: {datetime.now().strftime('%d.%m.%Y')} | Augsburg", align='C')
     return pdf.output(dest="S").encode("latin-1")
 
-# --- 5. APP LOGIK ---
+# --- 5. PROFESSIONELLES DIENST-LOGIN ---
 if not st.session_state["auth"]:
-    st.title("🚓 KOD Augsburg")
-    if st.text_input("🔑 Dienstpasswort", type="password") == DIENST_PW:
-        st.session_state["auth"] = True
-        st.rerun()
+    # Drei Spalten, um das Login-Feld in die Mitte zu rücken
+    _, login_col, _ = st.columns([1, 2, 1])
+    
+    with login_col:
+        st.write("#") # Abstand nach oben
+        st.write("#")
+        st.markdown("<h2 style='text-align: center;'>🔒 Dienst-Login</h2>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align: center; color: gray;'>Kommunaler Ordnungsdienst Augsburg</p>", unsafe_allow_html=True)
+        
+        # Eingabefeld ohne störenden Header darüber
+        pw_input = st.text_input("", type="password", placeholder="Passwort eingeben...", label_visibility="collapsed")
+        
+        if pw_input == DIENST_PW:
+            st.session_state["auth"] = True
+            st.rerun()
+        elif pw_input != "":
+            st.error("Ungültiges Dienst-Passwort.")
     st.stop()
 
+# --- 6. HAUPTSEITE (Erst nach Login sichtbar) ---
 st.title("📋 Einsatzbericht")
 
-# --- FORMULAR (KORRIGIERT FÜR POLIZEI-AUFKLAPPEN) ---
+# --- FORMULAR ---
 with st.expander("📝 NEUEN BERICHT ANLEGEN", expanded=True):
     loc = get_geolocation()
     gps_val = f"{loc['coords']['latitude']}, {loc['coords']['longitude']}" if loc else "📍 GPS nicht erfasst"
     
-    # Die Behörden-Checkboxes müssen für Echtzeit-Reaktion außerhalb 
-    # des Form-Buttons stehen oder wir nutzen Session-State.
     st.subheader("📍 Einsatzdetails")
     c1, c2, c3, c4 = st.columns(4)
     datum = c1.date_input("📅 Datum")
@@ -155,7 +172,6 @@ with st.expander("📝 NEUEN BERICHT ANLEGEN", expanded=True):
     st.subheader("👮 Beteiligte Behörden")
     k_col1, k_col2, k_col3 = st.columns(3)
     with k_col1:
-        # HIER DIE KORREKTUR:
         pol_check = st.checkbox("🚔 Polizei")
         funkkennung = ""
         if pol_check:
@@ -164,7 +180,6 @@ with st.expander("📝 NEUEN BERICHT ANLEGEN", expanded=True):
     rtw_check = k_col2.checkbox("🚑 Rettungsdienst")
     fw_check = k_col3.checkbox("🚒 Feuerwehr")
 
-    # Der eigentliche Speicher-Button in einem kleinen Form-Container für die Texte
     with st.form("content_form"):
         st.subheader("📄 Berichtsinhalt")
         inhalt = st.text_area("✍️ Sachverhalt", height=150)
