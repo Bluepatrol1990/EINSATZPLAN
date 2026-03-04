@@ -18,35 +18,47 @@ ADMIN_PW = "admin789"
 DIENST_PW = "1990" 
 MASTER_KEY = st.secrets.get("master_key", "AugsburgSicherheit32ZeichenCheck!")
 
-# Empfänger für spätere Funktionen: Kevin.woelki@augsburg.de, kevinworlki@outlook.de
+# Empfänger: Kevin.woelki@augsburg.de und kevinworlki@outlook.de
 
 st.set_page_config(page_title="KOD Augsburg - Einsatzbericht", page_icon="🚓", layout="wide") 
 
-# --- 2. CSS STYLING ---
+# --- 2. DARK MODE & CSS STYLING ---
 st.markdown("""
     <style>
+    /* Dark Mode Grundgerüst */
+    .stApp {
+        background-color: #0e1117;
+        color: #ffffff;
+    }
     .report-card { 
-        background-color: #ffffff; 
+        background-color: #1e2128; 
         border-radius: 10px; 
         padding: 20px; 
         border-left: 10px solid #004b95; 
         margin-bottom: 15px; 
-        color: #333333;
-        border: 1px solid #dddddd;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        color: #ffffff;
+        border: 1px solid #333333;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
     }
     .metric-box {
-        background-color: #f8f9fa;
+        background-color: #262730;
         padding: 10px;
         border-radius: 5px;
-        border: 1px solid #eee;
+        border: 1px solid #444;
+        color: #eeeeee;
     }
     .login-container {
         text-align: center;
         padding: 50px;
         border-radius: 15px;
-        background-color: #f0f2f6;
+        background-color: #1e2128;
+        border: 1px solid #333;
+        margin-top: 100px;
     }
+    /* Header-Bereinigung */
+    header {visibility: hidden;}
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
     </style>
     """, unsafe_allow_html=True) 
 
@@ -132,26 +144,34 @@ def create_official_pdf(row_data):
     pdf.cell(0, 10, f"Erstellt: {datetime.now().strftime('%d.%m.%Y')} | Augsburg", align='C')
     return pdf.output(dest="S").encode("latin-1")
 
-# --- 5. APP LOGIK (LOGIN MIT SCHLOSS) ---
+# --- 5. LOGIN (VERSTECKT ALLES ANDERE) ---
 if not st.session_state["auth"]:
     _, col_center, _ = st.columns([1, 2, 1])
     with col_center:
         st.markdown('<div class="login-container">', unsafe_allow_html=True)
-        st.title("🔓 Sicherheitsbereich")
+        st.markdown("# 🔒")
+        st.title("Sicherheitsbereich")
         st.subheader("KOD Augsburg")
-        pw_input = st.text_input("Geben Sie das Dienstpasswort ein", type="password")
+        pw_input = st.text_input("Dienstpasswort", type="password", key="main_login")
         if pw_input == DIENST_PW:
             st.session_state["auth"] = True
             st.rerun()
         elif pw_input != "":
-            st.error("Falsches Passwort")
+            st.error("Zugriff verweigert")
         st.markdown('</div>', unsafe_allow_html=True)
+    
+    # Admin-Login trotzdem in Sidebar ermöglichen
+    with st.sidebar:
+        st.subheader("🛡️ Admin")
+        admin_check = st.text_input("Admin-Key", type="password", key="sidebar_admin")
+        if admin_check == ADMIN_PW:
+            st.session_state["admin_auth"] = True
+            st.success("Admin autorisiert")
     st.stop()
 
-# --- HAUPTINHALT ---
+# --- HAUPTAPP (ERST NACH LOGIN SICHTBAR) ---
 st.title("📋 Einsatzbericht")
 
-# --- FORMULAR ---
 with st.expander("📝 NEUEN BERICHT ANLEGEN", expanded=True):
     loc = get_geolocation()
     gps_val = f"{loc['coords']['latitude']}, {loc['coords']['longitude']}" if loc else "📍 GPS nicht erfasst"
@@ -228,7 +248,7 @@ if os.path.exists(DATEI):
                     <span style="font-size: 1.2em;">📂 <strong>AZ: {row['AZ']}</strong></span>
                     <span>📅 {row['Datum']}</span>
                 </div>
-                <hr style="margin: 10px 0;">
+                <hr style="margin: 10px 0; border-color: #444;">
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
                     <div class="metric-box">📍 <b>Einsatzort:</b> {row['Ort']} {row['Hausnummer']}</div>
                     <div class="metric-box">🕒 <b>Zeit:</b> {row['Beginn']} - {row['Ende']}</div>
@@ -254,26 +274,23 @@ if os.path.exists(DATEI):
                     df_archive.drop(idx).to_csv(DATEI, index=False)
                     st.rerun()
             else:
-                st.info("🔒 Admin-Freigabe erforderlich")
+                st.info("🔒 Admin-Login erforderlich für Export/Löschen")
 
-# --- SIDEBAR (ADMIN-LOGIN) ---
+# --- SIDEBAR (ADMIN-LOGIN WÄHREND DER NUTZUNG) ---
 with st.sidebar:
-    st.title("🛡️ Admin-Bereich")
-    st.markdown("Zutritt nur für autorisiertes Personal.")
-    
-    admin_pw_input = st.text_input("🔑 Admin-Passwort", type="password")
-    
-    if admin_pw_input == ADMIN_PW:
-        if not st.session_state["admin_auth"]:
+    st.title("⚙️ Einstellungen")
+    if not st.session_state["admin_auth"]:
+        admin_login = st.text_input("🔑 Admin-Login", type="password", key="sidebar_active")
+        if admin_login == ADMIN_PW:
             st.session_state["admin_auth"] = True
             st.rerun()
-        st.success("✅ Admin-Modus aktiv")
-        if st.button("Logout Admin"):
-            st.session_state["admin_auth"] = False
-            st.rerun()
     else:
-        if st.session_state["admin_auth"]:
+        st.success("Admin-Status: Aktiv")
+        if st.button("Abmelden (Admin)"):
             st.session_state["admin_auth"] = False
             st.rerun()
-        if admin_pw_input != "":
-            st.error("Passwort inkorrekt")
+    
+    if st.button("Logout (Gesamt)"):
+        st.session_state["auth"] = False
+        st.session_state["admin_auth"] = False
+        st.rerun()
