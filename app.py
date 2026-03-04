@@ -15,11 +15,9 @@ DATEI = "zentral_archiv_secure.csv"
 LOGO_PFAD = "logo.png" 
 COLUMNS = ["Datum", "Beginn", "Ende", "Ort", "Hausnummer", "Zeugen", "Bericht", "AZ", "Foto", "GPS", "Kraefte"]
 ADMIN_PW = "admin789"
-DIENST_PW = st.secrets.get("dienst_password", "1234")
+# NEU: Passwort auf 1990 geändert
+DIENST_PW = st.secrets.get("dienst_password", "1990")
 MASTER_KEY = st.secrets.get("master_key", "AugsburgSicherheit32ZeichenCheck!")
-
-# Hinterlegte Empfänger (für spätere Verwendung)
-# Kevin.woelki@augsburg.de | kevinwoelki@outlook.de
 
 st.set_page_config(page_title="KOD Augsburg - Einsatzbericht", page_icon="🚓", layout="wide") 
 
@@ -224,7 +222,9 @@ if os.path.exists(DATEI):
             </div>
         """, unsafe_allow_html=True)
         
-        c_det, c_pdf, c_del = st.columns([3, 1, 1])
+        # Geänderte Spaltenverteilung für Admin-Abhängigkeit
+        c_det, c_admin_tools = st.columns([3, 2])
+        
         with c_det:
             with st.expander("👁️ Details anzeigen"):
                 st.info(f"**✍️ Sachverhalt:**\n{entschluesseln(row['Bericht'])}")
@@ -232,15 +232,18 @@ if os.path.exists(DATEI):
                 img_data = entschluesseln(row['Foto'])
                 if img_data != "-": st.image(base64.b64decode(img_data), caption="Beweismittel", width=400)
         
-        with c_pdf:
-            pdf_bytes = create_official_pdf(row)
-            st.download_button("📄 PDF Export", pdf_bytes, f"Bericht_{row['AZ']}.pdf", "application/pdf", key=f"pdf_{idx}")
-        
-        with c_del:
+        with c_admin_tools:
             if st.session_state["admin_auth"]:
-                if st.button("🗑️ Löschen", key=f"del_{idx}"):
-                    df_archive.drop(idx).to_csv(DATEI, index=False)
-                    st.rerun()
+                c_pdf, c_del = st.columns(2)
+                with c_pdf:
+                    pdf_bytes = create_official_pdf(row)
+                    st.download_button("📄 PDF Export", pdf_bytes, f"Bericht_{row['AZ']}.pdf", "application/pdf", key=f"pdf_{idx}")
+                with c_del:
+                    if st.button("🗑️ Löschen", key=f"del_{idx}"):
+                        df_archive.drop(idx).to_csv(DATEI, index=False)
+                        st.rerun()
+            else:
+                st.warning("🔒 PDF & Löschen nur für Admins")
 
 # --- ADMIN ---
 with st.sidebar:
@@ -252,4 +255,8 @@ with st.sidebar:
             if st.button("🚨 ARCHIV KOMPLETT LEEREN"):
                 if os.path.exists(DATEI): os.remove(DATEI)
                 st.rerun()
-        else: st.session_state["admin_auth"] = False
+        else: 
+            st.session_state["admin_auth"] = False
+            if st.session_state.get("admin_auth") == False:
+                st.error("Falsches Admin-Passwort")
+
