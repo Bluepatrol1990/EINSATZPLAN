@@ -18,31 +18,41 @@ ADMIN_PW = "admin789"
 DIENST_PW = "1990" 
 MASTER_KEY = st.secrets.get("master_key", "AugsburgSicherheit32ZeichenCheck!")
 
-# Hinterlegte Empfänger aus deinen Vorgaben
+# Deine hinterlegten Empfänger
 RECIPIENTS = ["Kevin.woelki@augsburg.de", "kevinworlki@outlook.de"]
 
 st.set_page_config(page_title="KOD Augsburg - Einsatzbericht", page_icon="🚓", layout="wide") 
 
-# --- 2. CSS STYLING (MAXIMALE BEREINIGUNG) ---
+# --- 2. CSS STYLING (SICHERHEIT & DESIGN) ---
 st.markdown("""
     <style>
-    /* Entfernt das Hauptmenü und die Standard-Header */
+    /* 1. Standard-Elemente ausblenden */
     #MainMenu {visibility: hidden;}
     header {visibility: hidden;}
     footer {visibility: hidden;}
     
-    /* Entfernt den 'Deploy'-Button oben rechts */
-    .stAppDeployButton {display:none !important;}
-    div.stDeployButton {display:none !important;}
-    
-    /* Entfernt 'Manage app' und das Burger-Menü unten rechts komplett */
-    button[title="View menu"] {display:none !important;}
-    [data-testid="stStatusWidget"] {display:none !important;}
-    [data-testid="stDecoration"] {display:none !important;}
-    footer {display:none !important;}
-    
+    /* 2. 'Manage app' & Deploy-Buttons radikal entfernen */
+    /* Dies zielt auf die Toolbar und die Status-Widgets von Streamlit Cloud ab */
+    [data-testid="stStatusWidget"], 
+    [data-testid="stDecoration"], 
+    [data-testid="stHeader"],
+    .stAppDeployButton,
+    div.stDeployButton,
+    footer {
+        display: none !important;
+    }
+
+    /* Entfernt das 'View menu' (drei Punkte / Manage App) unten rechts */
+    button[title="View menu"], 
+    .stActionButton, 
+    #stConnectionStatus, 
+    .st-emotion-cache-zq5wms, /* Spezifischer Cloud-Selektor */
+    .st-emotion-cache-10pw50 { 
+        display: none !important; 
+    }
+
     /* Versteckt die Sidebar komplett */
-    [data-testid="stSidebar"] {display: none;}
+    [data-testid="stSidebar"] { display: none; }
 
     /* FIXIERTER HEADER */
     .sticky-header {
