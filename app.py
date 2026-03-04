@@ -10,14 +10,13 @@ from cryptography.fernet import Fernet
 from streamlit_js_eval import get_geolocation 
 from fpdf import FPDF 
 
-# --- 1. KONFIGURATION & SICHERHEIT (GESPERRT ÜBER SECRETS) ---
-# Diese Werte sollten idealerweise in der Streamlit Cloud unter "Secrets" oder 
-# lokal in .streamlit/secrets.toml stehen.
+# --- 1. KONFIGURATION & SICHERHEIT ---
+# Nutzung von Secrets (empfohlen) oder Fallback-Werten
 ADMIN_PW = st.secrets.get("admin_password", "admin789")
 DIENST_PW = st.secrets.get("dienst_password", "1990")
 MASTER_KEY = st.secrets.get("master_key", "AugsburgSicherheit32ZeichenCheck!")
 
-# Hinterlegte Empfänger (Kevin Woelki)
+# Hinterlegte Empfänger
 EMAIL_RECIPIENTS = ["Kevin.woelki@augsburg.de", "kevinworlki@outlook.de"]
 
 DATEI = "zentral_archiv_secure.csv"
@@ -26,9 +25,16 @@ COLUMNS = ["Datum", "Beginn", "Ende", "Ort", "Hausnummer", "Zeugen", "Bericht", 
 
 st.set_page_config(page_title="KOD Augsburg - Einsatzbericht", page_icon="🚓", layout="wide") 
 
-# --- 2. CSS STYLING ---
+# --- 2. UI SCHUTZ & STYLING (VERBIRGT MENÜLEISTE) ---
 st.markdown("""
     <style>
+    /* Verbirgt die Streamlit Menüleiste und Header */
+    #MainMenu {visibility: hidden;}
+    header {visibility: hidden;}
+    footer {visibility: hidden;}
+    .stDeployButton {display:none;}
+    
+    /* Karten-Styling */
     .report-card { 
         background-color: #ffffff; 
         border-radius: 10px; 
@@ -53,7 +59,6 @@ if "auth" not in st.session_state: st.session_state["auth"] = False
 if "admin_auth" not in st.session_state: st.session_state["admin_auth"] = False 
 
 def get_cipher():
-    # Erzeugt einen validen 32-Byte Key für Fernet
     key_64 = base64.urlsafe_b64encode(MASTER_KEY[:32].encode().ljust(32))
     return Fernet(key_64) 
 
@@ -64,7 +69,7 @@ def verschluesseln(text):
 def entschluesseln(safe_text):
     if not safe_text or safe_text == "-": return "-"
     try: return get_cipher().decrypt(safe_text.encode()).decode()
-    except: return "[DATENFEHLER - KEY FALSCH]" 
+    except: return "[DATENFEHLER]" 
 
 # --- 4. PDF GENERIERUNG ---
 def create_official_pdf(row_data):
@@ -128,23 +133,26 @@ def create_official_pdf(row_data):
 
     pdf.set_y(-25)
     pdf.set_font("Arial", 'I', 8)
-    pdf.cell(0, 10, f"Erstellt: {datetime.now().strftime('%d.%m.%Y')} | Augsburg", align='C')
+    pdf.cell(0, 10, f"Erstellt: {datetime.now().strftime('%d.%m.%Y')} | KOD Augsburg", align='C')
     return pdf.output(dest="S").encode("latin-1") 
 
-# --- 5. APP LOGIK ---
+# --- 5. LOGIN LOGIK ---
 if not st.session_state["auth"]:
-    st.title("🚓 KOD Augsburg")
-    pw_input = st.text_input("🔑 Dienstpasswort eingeben", type="password")
-    if pw_input == DIENST_PW:
-        st.session_state["auth"] = True
-        st.rerun()
-    elif pw_input != "":
-        st.error("Falsches Passwort")
+    c1, c2, c3 = st.columns([1, 2, 1])
+    with c2:
+        st.image("https://www.augsburg.de/typo3conf/ext/mag_site/Resources/Public/Images/Logo/augsburg_logo.svg", width=200)
+        st.title("🚓 Dienst-Login")
+        pw_input = st.text_input("Bitte Dienstpasswort eingeben", type="password", help="Zugang nur für befugtes Personal")
+        if pw_input == DIENST_PW:
+            st.session_state["auth"] = True
+            st.rerun()
+        elif pw_input != "":
+            st.error("Zugriff verweigert: Passwort ungültig.")
     st.stop() 
 
-st.title("📋 Einsatzbericht-System") 
+# --- 6. HAUPT-APP ---
+st.title("📋 KOD Einsatzbericht-System") 
 
-# --- NEUER BERICHT ---
 with st.expander("📝 NEUEN BERICHT ANLEGEN", expanded=True):
     loc = get_geolocation()
     gps_val = f"{loc['coords']['latitude']}, {loc['coords']['longitude']}" if loc else "📍 GPS nicht erfasst"
@@ -185,29 +193,22 @@ with st.expander("📝 NEUEN BERICHT ANLEGEN", expanded=True):
             b64_img = "-"
             if bild:
                 img = Image.open(bild).convert("RGB")
-                img.thumbnail((1000, 1000)) # Komprimierung für Speicherplatz
+                img.thumbnail((1000, 1000))
                 buf = io.BytesIO()
                 img.save(buf, format="JPEG", quality=75)
                 b64_img = base64.b64encode(buf.getvalue()).decode() 
 
             new_data = {
-                "Datum": str(datum), 
-                "Beginn": beginn.strftime("%H:%M"), 
-                "Ende": ende.strftime("%H:%M"),
-                "Ort": ort_val, 
-                "Hausnummer": hnr_val, 
-                "Zeugen": verschluesseln(beteiligte),
-                "Bericht": verschluesseln(inhalt), 
-                "AZ": az_val, 
-                "Foto": verschluesseln(b64_img),
-                "GPS": gps_val, 
-                "Kraefte": verschluesseln(", ".join(k_list))
+                "Datum": str(datum), "Beginn": beginn.strftime("%H:%M"), "Ende": ende.strftime("%H:%M"),
+                "Ort": ort_val, "Hausnummer": hnr_val, "Zeugen": verschluesseln(beteiligte),
+                "Bericht": verschluesseln(inhalt), "AZ": az_val, "Foto": verschluesseln(b64_img),
+                "GPS": gps_val, "Kraefte": verschluesseln(", ".join(k_list))
             }
             
             df = pd.read_csv(DATEI) if os.path.exists(DATEI) else pd.DataFrame(columns=COLUMNS)
             df = pd.concat([df, pd.DataFrame([new_data])], ignore_index=True)
             df.to_csv(DATEI, index=False)
-            st.success("✅ Bericht erfolgreich im sicheren Archiv gespeichert.")
+            st.success("✅ Bericht erfolgreich archiviert.")
             st.rerun() 
 
 # --- ARCHIV ---
@@ -244,24 +245,18 @@ if os.path.exists(DATEI):
                 st.warning(f"**👥 Beteiligte:** {entschluesseln(row['Zeugen'])}")
                 img_data = entschluesseln(row['Foto'])
                 if img_data != "-": 
-                    try:
-                        st.image(base64.b64decode(img_data), width=450)
-                    except: st.error("Bild konnte nicht geladen werden.")
+                    st.image(base64.b64decode(img_data), width=450)
         
         with c_admin_only:
             if st.session_state.get("admin_auth", False):
-                try:
-                    pdf_bytes = create_official_pdf(row)
-                    st.download_button("📄 PDF Export", pdf_bytes, f"Bericht_{row['AZ']}.pdf", "application/pdf", key=f"pdf_{idx}")
-                except Exception as e:
-                    st.error(f"PDF Fehler: {e}")
-                
-                if st.button("🗑️ Löschen", key=f"del_{idx}", help="Datensatz endgültig entfernen"):
+                pdf_bytes = create_official_pdf(row)
+                st.download_button("📄 PDF Export", pdf_bytes, f"Bericht_{row['AZ']}.pdf", "application/pdf", key=f"pdf_{idx}")
+                if st.button("🗑️ Löschen", key=f"del_{idx}"):
                     df_temp = pd.read_csv(DATEI)
                     df_temp.drop(idx).to_csv(DATEI, index=False)
                     st.rerun()
             else:
-                st.info("🔒 Admin-Login für Export/Löschen") 
+                st.info("🔒 Admin-Bereich") 
 
 # --- SIDEBAR (ADMIN-LOGIN) ---
 with st.sidebar:
@@ -270,13 +265,9 @@ with st.sidebar:
     if st.checkbox("🔑 Admin-Modus aktivieren"):
         admin_pw_input = st.text_input("Admin-Passwort", type="password")
         if admin_pw_input == ADMIN_PW:
-            if not st.session_state["admin_auth"]:
-                st.session_state["admin_auth"] = True
-                st.rerun()
-            st.success("Admin-Berechtigungen aktiv")
+            st.session_state["admin_auth"] = True
+            st.success("Admin aktiv")
         else:
-            if st.session_state["admin_auth"]:
-                st.session_state["admin_auth"] = False
-                st.rerun()
+            st.session_state["admin_auth"] = False
     else:
         st.session_state["admin_auth"] = False
