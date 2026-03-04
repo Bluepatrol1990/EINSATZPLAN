@@ -22,41 +22,51 @@ MASTER_KEY = st.secrets.get("master_key", "AugsburgSicherheit32ZeichenCheck!")
 
 st.set_page_config(page_title="KOD Augsburg - Einsatzbericht", page_icon="🚓", layout="wide") 
 
-# --- 2. DARK MODE & KORRIGIERTE SCHRIFTFARBEN ---
+# --- 2. EXTREMES DARK MODE CSS (ALLE FELDER WEISS) ---
 st.markdown("""
     <style>
-    /* Dark Mode Grundgerüst */
+    /* Dark Mode Hintergrund */
     .stApp {
         background-color: #0e1117;
+    }
+    
+    /* 1. ALLE Texte auf Weiß (Labels, Titel, Markdowns) */
+    h1, h2, h3, p, span, label, div, .stMarkdown, .stCheckbox, p {
+        color: #ffffff !important;
+    }
+
+    /* 2. ALLE Eingabefelder (Text, Area, Date, Time, Number) */
+    input, textarea, select, .stTextInput>div>div>input, .stTextArea>div>div>textarea {
+        color: #ffffff !important;
+        background-color: #262730 !important;
+        -webkit-text-fill-color: #ffffff !important; /* Wichtig für Safari/Chrome */
+    }
+
+    /* 3. Speziell für Datums- und Zeit-Inputs (Streamlit Widgets) */
+    div[data-baseweb="input"] > div {
+        background-color: #262730 !important;
         color: #ffffff !important;
     }
     
-    /* Alle Standard-Texte auf Weiß */
-    h1, h2, h3, p, span, label, .stMarkdown, .stCheckbox {
-        color: #ffffff !important;
+    /* 4. Platzhalter-Text (grau-weiß statt schwarz) */
+    ::placeholder {
+        color: #aaaaaa !important;
+        opacity: 1;
     }
 
-    /* KORREKTUR: Text in Eingabefeldern (Inputs, Textareas) sichtbar machen */
-    input, textarea, select {
-        color: #ffffff !important;
-        background-color: #262730 !important;
+    /* 5. Icons in den Feldern (Kalender, Uhr) */
+    svg {
+        fill: #ffffff !important;
     }
 
-    /* Speziell für Streamlit Eingabefelder */
-    .stTextInput>div>div>input, .stTextArea>div>div>textarea {
-        color: #ffffff !important;
-        background-color: #262730 !important;
-    }
-
+    /* 6. Cards & Boxen */
     .report-card { 
         background-color: #1e2128; 
         border-radius: 10px; 
         padding: 20px; 
         border-left: 10px solid #004b95; 
         margin-bottom: 15px; 
-        color: #ffffff !important;
         border: 1px solid #333333;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
     }
 
     .metric-box {
@@ -64,10 +74,9 @@ st.markdown("""
         padding: 10px;
         border-radius: 5px;
         border: 1px solid #444;
-        color: #ffffff !important;
     }
 
-    /* Header-Bereinigung */
+    /* Header ausblenden */
     header {visibility: hidden;}
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
@@ -284,7 +293,7 @@ with c2:
             st.session_state["show_admin_login"] = True
         
         if st.session_state.get("show_admin_login", False):
-            adm_input = st.text_input("Admin-Passwort", type="password", key="admin_pwd_field")
+            adm_input = st.text_input("Admin-Passwort", type="password", key="admin_key_bottom")
             if adm_input == ADMIN_PW:
                 st.session_state["admin_auth"] = True
                 st.session_state["show_admin_login"] = False
