@@ -15,19 +15,18 @@ DIENST_PW = "1990"
 ADMIN_PW = st.secrets.get("admin_password", "admin789")
 MASTER_KEY = st.secrets.get("master_key", "AugsburgSicherheit32ZeichenCheck!")
 
-# Hinterlegte Empfänger
+# Hinterlegte Empfänger (Kevin Woelki)
 EMAIL_RECIPIENTS = ["Kevin.woelki@augsburg.de", "kevinworlki@outlook.de"]
 
 DATEI = "zentral_archiv_secure.csv"
 LOGO_PFAD = "logo.png" 
 COLUMNS = ["Datum", "Beginn", "Ende", "Ort", "Hausnummer", "Zeugen", "Bericht", "AZ", "Foto", "GPS", "Kraefte"]
 
-st.set_page_config(page_title="KOD Augsburg - Login", page_icon="🚓", layout="wide") 
+st.set_page_config(page_title="KOD Augsburg - Einsatzbericht", page_icon="🚓", layout="wide") 
 
-# --- 2. ERWEITERTES UI STYLING ---
+# --- 2. UI SCHUTZ & STYLING ---
 st.markdown("""
     <style>
-    /* Verbirgt Streamlit-Elemente */
     #MainMenu {visibility: hidden;}
     header {visibility: hidden;}
     footer {visibility: hidden;}
@@ -44,16 +43,17 @@ st.markdown("""
         margin-top: 50px;
     }
     
+    /* Archiv Karten Design (Original-Zustand) */
     .report-card { 
         background-color: #ffffff; 
         border-radius: 10px; 
         padding: 20px; 
         border-left: 10px solid #004b95; 
         margin-bottom: 15px; 
+        color: #333333;
         border: 1px solid #dddddd;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
-    
     .metric-box {
         background-color: #f8f9fa;
         padding: 10px;
@@ -147,34 +147,25 @@ def create_official_pdf(row_data):
 
 # --- 5. PROFESSIONELLES DIENST-LOGIN ---
 if not st.session_state["auth"]:
-    # Zentrierung des Logins
     _, center, _ = st.columns([1, 1.5, 1])
-    
     with center:
         st.markdown('<div class="login-box">', unsafe_allow_html=True)
         st.image("https://www.augsburg.de/typo3conf/ext/mag_site/Resources/Public/Images/Logo/augsburg_logo.svg", width=180)
         st.subheader("🔒 Behörden-Sicherheitsbereich")
-        st.write("Bitte identifizieren Sie sich mit dem Dienstpasswort.")
-        
-        # Das eigentliche Input-Feld
         pw_input = st.text_input("Dienstpasswort", type="password", label_visibility="collapsed", placeholder="Passwort eingeben...")
-        
         login_btn = st.button("Anmelden", use_container_width=True)
-        
         if login_btn or pw_input:
             if pw_input == DIENST_PW:
                 st.session_state["auth"] = True
-                st.success("Erfolgreich autorisiert. System wird geladen...")
                 st.rerun()
             elif pw_input != "":
-                st.error("Ungültiges Kennwort. Zugriff verweigert.")
-        
-        st.markdown('<p style="font-size: 0.8em; color: gray; margin-top: 20px;">Stadt Augsburg - Kommunaler Ordnungsdienst (KOD)</p>', unsafe_allow_html=True)
+                st.error("Ungültiges Kennwort.")
+        st.markdown('<p style="font-size: 0.8em; color: gray; margin-top: 20px;">Stadt Augsburg - KOD</p>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
     st.stop() 
 
 # --- 6. HAUPT-APP ---
-st.title("🚓 KOD Einsatzbericht-System") 
+st.title("📋 Einsatzbericht") # Titel angepasst
 
 with st.expander("📝 NEUEN BERICHT ANLEGEN", expanded=True):
     loc = get_geolocation()
@@ -245,21 +236,23 @@ if os.path.exists(DATEI):
         df_archive = df_archive[df_archive['AZ'].str.contains(suche, case=False) | df_archive['Ort'].str.contains(suche, case=False)] 
 
     for idx, row in df_archive.iloc[::-1].iterrows():
+        # --- ORIGINAL LAYOUT START ---
         st.markdown(f"""
             <div class="report-card">
                 <div style="display: flex; justify-content: space-between;">
-                    <span style="font-size: 1.2em; color: #004b95;">📂 <strong>AZ: {row['AZ']}</strong></span>
-                    <span style="color: #666;">📅 {row['Datum']}</span>
+                    <span style="font-size: 1.2em;">📂 <strong>AZ: {row['AZ']}</strong></span>
+                    <span>📅 {row['Datum']}</span>
                 </div>
-                <hr style="margin: 10px 0; border: 0.5px solid #eee;">
+                <hr style="margin: 10px 0;">
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                    <div class="metric-box">📍 <b>Ort:</b> {row['Ort']} {row['Hausnummer']}</div>
+                    <div class="metric-box">📍 <b>Einsatzort:</b> {row['Ort']} {row['Hausnummer']}</div>
                     <div class="metric-box">🕒 <b>Zeit:</b> {row['Beginn']} - {row['Ende']}</div>
                     <div class="metric-box">👮 <b>Kräfte:</b> {entschluesseln(row['Kraefte'])}</div>
                     <div class="metric-box">🌐 <b>GPS:</b> {row['GPS']}</div>
                 </div>
             </div>
         """, unsafe_allow_html=True)
+        # --- ORIGINAL LAYOUT ENDE ---
         
         c_det, c_admin_only = st.columns([3, 1])
         with c_det:
