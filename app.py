@@ -11,27 +11,38 @@ from streamlit_js_eval import get_geolocation
 from fpdf import FPDF 
 
 # --- 1. KONFIGURATION & SICHERHEIT ---
-# Passwort auf 1990 geändert. Secrets haben Vorrang, falls in Streamlit Cloud gesetzt.
+DIENST_PW = "1990" 
 ADMIN_PW = st.secrets.get("admin_password", "admin789")
-DIENST_PW = st.secrets.get("dienst_password", "1990") 
 MASTER_KEY = st.secrets.get("master_key", "AugsburgSicherheit32ZeichenCheck!")
 
-# Hinterlegte Empfänger (Kevin Woelki)
+# Hinterlegte Empfänger
 EMAIL_RECIPIENTS = ["Kevin.woelki@augsburg.de", "kevinworlki@outlook.de"]
 
 DATEI = "zentral_archiv_secure.csv"
 LOGO_PFAD = "logo.png" 
 COLUMNS = ["Datum", "Beginn", "Ende", "Ort", "Hausnummer", "Zeugen", "Bericht", "AZ", "Foto", "GPS", "Kraefte"]
 
-st.set_page_config(page_title="KOD Augsburg - Einsatzbericht", page_icon="🚓", layout="wide") 
+st.set_page_config(page_title="KOD Augsburg - Login", page_icon="🚓", layout="wide") 
 
-# --- 2. UI SCHUTZ & STYLING (VERBIRGT MENÜLEISTE FÜR NUTZER) ---
+# --- 2. ERWEITERTES UI STYLING ---
 st.markdown("""
     <style>
+    /* Verbirgt Streamlit-Elemente */
     #MainMenu {visibility: hidden;}
     header {visibility: hidden;}
     footer {visibility: hidden;}
     .stDeployButton {display:none;}
+    
+    /* Login Container Design */
+    .login-box {
+        background-color: #ffffff;
+        padding: 40px;
+        border-radius: 15px;
+        border: 1px solid #e0e0e0;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        text-align: center;
+        margin-top: 50px;
+    }
     
     .report-card { 
         background-color: #ffffff; 
@@ -39,10 +50,10 @@ st.markdown("""
         padding: 20px; 
         border-left: 10px solid #004b95; 
         margin-bottom: 15px; 
-        color: #333333;
         border: 1px solid #dddddd;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
     }
+    
     .metric-box {
         background-color: #f8f9fa;
         padding: 10px;
@@ -134,22 +145,36 @@ def create_official_pdf(row_data):
     pdf.cell(0, 10, f"Erstellt: {datetime.now().strftime('%d.%m.%Y')} | KOD Augsburg", align='C')
     return pdf.output(dest="S").encode("latin-1") 
 
-# --- 5. DIENST-LOGIN LOGIK ---
+# --- 5. PROFESSIONELLES DIENST-LOGIN ---
 if not st.session_state["auth"]:
-    c1, c2, c3 = st.columns([1, 2, 1])
-    with c2:
-        st.image("https://www.augsburg.de/typo3conf/ext/mag_site/Resources/Public/Images/Logo/augsburg_logo.svg", width=200)
-        st.title("🚓 Dienst-Login")
-        pw_input = st.text_input("Bitte Dienstpasswort eingeben", type="password", help="Zugang nur für befugtes Personal")
-        if pw_input == DIENST_PW:
-            st.session_state["auth"] = True
-            st.rerun()
-        elif pw_input != "":
-            st.error("Zugriff verweigert: Passwort ungültig.")
+    # Zentrierung des Logins
+    _, center, _ = st.columns([1, 1.5, 1])
+    
+    with center:
+        st.markdown('<div class="login-box">', unsafe_allow_html=True)
+        st.image("https://www.augsburg.de/typo3conf/ext/mag_site/Resources/Public/Images/Logo/augsburg_logo.svg", width=180)
+        st.subheader("🔒 Behörden-Sicherheitsbereich")
+        st.write("Bitte identifizieren Sie sich mit dem Dienstpasswort.")
+        
+        # Das eigentliche Input-Feld
+        pw_input = st.text_input("Dienstpasswort", type="password", label_visibility="collapsed", placeholder="Passwort eingeben...")
+        
+        login_btn = st.button("Anmelden", use_container_width=True)
+        
+        if login_btn or pw_input:
+            if pw_input == DIENST_PW:
+                st.session_state["auth"] = True
+                st.success("Erfolgreich autorisiert. System wird geladen...")
+                st.rerun()
+            elif pw_input != "":
+                st.error("Ungültiges Kennwort. Zugriff verweigert.")
+        
+        st.markdown('<p style="font-size: 0.8em; color: gray; margin-top: 20px;">Stadt Augsburg - Kommunaler Ordnungsdienst (KOD)</p>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
     st.stop() 
 
 # --- 6. HAUPT-APP ---
-st.title("📋 KOD Einsatzbericht-System") 
+st.title("🚓 KOD Einsatzbericht-System") 
 
 with st.expander("📝 NEUEN BERICHT ANLEGEN", expanded=True):
     loc = get_geolocation()
@@ -223,12 +248,12 @@ if os.path.exists(DATEI):
         st.markdown(f"""
             <div class="report-card">
                 <div style="display: flex; justify-content: space-between;">
-                    <span style="font-size: 1.2em;">📂 <strong>AZ: {row['AZ']}</strong></span>
-                    <span>📅 {row['Datum']}</span>
+                    <span style="font-size: 1.2em; color: #004b95;">📂 <strong>AZ: {row['AZ']}</strong></span>
+                    <span style="color: #666;">📅 {row['Datum']}</span>
                 </div>
-                <hr style="margin: 10px 0;">
+                <hr style="margin: 10px 0; border: 0.5px solid #eee;">
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                    <div class="metric-box">📍 <b>Einsatzort:</b> {row['Ort']} {row['Hausnummer']}</div>
+                    <div class="metric-box">📍 <b>Ort:</b> {row['Ort']} {row['Hausnummer']}</div>
                     <div class="metric-box">🕒 <b>Zeit:</b> {row['Beginn']} - {row['Ende']}</div>
                     <div class="metric-box">👮 <b>Kräfte:</b> {entschluesseln(row['Kraefte'])}</div>
                     <div class="metric-box">🌐 <b>GPS:</b> {row['GPS']}</div>
