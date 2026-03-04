@@ -26,6 +26,7 @@ st.set_page_config(page_title="KOD Augsburg - Einsatzbericht", page_icon="🚓",
 # --- 2. CSS STYLING (SICHERHEIT & DESIGN) ---
 st.markdown("""
     <style>
+    /* SICHERHEIT: Streamlit-Standardelemente hart entfernen */
     #MainMenu {visibility: hidden;}
     header {visibility: hidden;}
     footer {visibility: hidden;}
@@ -34,6 +35,7 @@ st.markdown("""
     [data-testid="stStatusWidget"] {display:none !important;}
     [data-testid="stSidebar"] {display: none;}
 
+    /* FIXIERTER HEADER */
     .sticky-header {
         position: fixed;
         top: 0;
@@ -65,12 +67,15 @@ st.markdown("""
         border-radius: 5px;
         border: 1px solid #eee;
     }
+    
+    /* LOGIN BOX DESIGN */
     .login-box {
         text-align: center; 
         padding: 30px; 
         border: 2px solid #004b95; 
         border-radius: 15px; 
         background-color: #f8f9fa; 
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     }
     </style>
     """, unsafe_allow_html=True) 
@@ -100,16 +105,26 @@ def create_official_pdf(row_data):
     pdf.cell(0, 10, "STADT AUGSBURG - KOD BERICHT", ln=True)
     return pdf.output(dest="S").encode("latin-1")
 
-# --- 5. LOGIN ---
+# --- 5. LOGIN (ZENTRIERT WIE DAVOR) ---
 if not st.session_state["auth"]:
     st.markdown("<br><br><br>", unsafe_allow_html=True)
     _, col_mid, _ = st.columns([1, 1.5, 1])
     with col_mid:
-        st.markdown('<div class="login-box"><h2>🔑 KOD Login</h2></div>', unsafe_allow_html=True)
-        pwd_input = st.text_input("Dienstpasswort", type="password", placeholder="Eingeben...")
-        if pwd_input == DIENST_PW:
-            st.session_state["auth"] = True
-            st.rerun()
+        st.markdown("""
+            <div class="login-box">
+                <h1 style="font-size: 3em; margin-bottom: 0;">🔑</h1>
+                <h2 style="color: #004b95; margin-top: 10px;">Sicherheitsbereich</h2>
+                <hr style="border: 0.5px solid #004b95; width: 50%; margin: 20px auto;">
+                <p style="color: #555;">KOD Augsburg - Identifikation erforderlich</p>
+            </div>
+        """, unsafe_allow_html=True)
+        pwd_input = st.text_input("Dienstpasswort", type="password", label_visibility="collapsed", placeholder="Passwort eingeben...")
+        if pwd_input:
+            if pwd_input == DIENST_PW:
+                st.session_state["auth"] = True
+                st.rerun()
+            else:
+                st.error("❌ Passwort falsch.")
     st.stop()
 
 # --- 6. HAUPTPROGRAMM ---
@@ -135,7 +150,6 @@ with st.expander("📝 NEUEN BERICHT ANLEGEN", expanded=True):
     ort_val = o1.text_input("🗺️ Einsatzort")
     hnr_val = o2.text_input("Hausnr.")
 
-    # --- WIEDER EINGEFÜGT: BEHÖRDEN ---
     st.subheader("👮 Beteiligte Behörden")
     k_col1, k_col2, k_col3 = st.columns(3)
     with k_col1:
