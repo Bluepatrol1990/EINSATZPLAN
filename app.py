@@ -26,12 +26,17 @@ st.set_page_config(page_title="KOD Augsburg - Einsatzbericht", page_icon="🚓",
 # --- 2. CSS STYLING (SICHERHEIT & DESIGN) ---
 st.markdown("""
     <style>
-    /* SICHERHEIT: Streamlit-Standardelemente ausblenden */
+    /* SICHERHEIT: Alle Streamlit-Standardelemente hart entfernen */
     #MainMenu {visibility: hidden;}
     header {visibility: hidden;}
     footer {visibility: hidden;}
     div.stDeployButton {display:none;}
-    [data-testid="stDecoration"] {display:none;}
+    
+    /* Entfernt die 'Manage App' Leiste und den Button unten rechts */
+    [data-testid="stDecoration"] {display:none !important;} 
+    [data-testid="stStatusWidget"] {display:none !important;}
+    
+    /* Versteckt die Sidebar komplett */
     [data-testid="stSidebar"] {display: none;}
 
     /* FIXIERTER HEADER */
@@ -106,32 +111,11 @@ def create_official_pdf(row_data):
     pdf.cell(0, 7, "ORDNUNGSAMT / KOD", ln=True)
     pdf.line(10, 38, 200, 38)
     pdf.ln(15)
-    
     pdf.set_font("Arial", 'B', 14)
     pdf.cell(0, 10, "AMTLICHER EINSATZBERICHT", ln=True, align='C')
-    pdf.ln(5)
-
-    def add_table_row(label, value):
-        pdf.set_font("Arial", 'B', 10)
-        pdf.set_fill_color(240, 240, 240)
-        pdf.cell(45, 9, f" {label}", border=1, fill=True)
-        pdf.set_font("Arial", '', 10)
-        pdf.cell(145, 9, f" {value}", border=1, ln=True)
-
-    add_table_row("Aktenzeichen (AZ)", row_data['AZ'])
-    add_table_row("Datum", row_data['Datum'])
-    add_table_row("Einsatzort", f"{row_data['Ort']} {row_data['Hausnummer']}")
-    add_table_row("Kräfte", entschluesseln(row_data['Kraefte']))
-    
-    pdf.ln(10)
-    pdf.set_font("Arial", 'B', 12)
-    pdf.cell(0, 10, "Sachverhalt / Feststellungen:", ln=True)
-    pdf.set_font("Arial", '', 11)
-    pdf.multi_cell(0, 7, entschluesseln(row_data['Bericht']), border='T')
-    
     return pdf.output(dest="S").encode("latin-1")
 
-# --- 5. LOGIN (WIE DAVOR) ---
+# --- 5. LOGIN ---
 if not st.session_state["auth"]:
     st.markdown("<br><br><br>", unsafe_allow_html=True)
     _, col_mid, _ = st.columns([1, 1.5, 1])
@@ -145,11 +129,9 @@ if not st.session_state["auth"]:
             </div>
         """, unsafe_allow_html=True)
         pwd_input = st.text_input("Dienstpasswort", type="password", label_visibility="collapsed", placeholder="Passwort eingeben...")
-        if pwd_input:
-            if pwd_input == DIENST_PW:
-                st.session_state["auth"] = True
-                st.rerun()
-            else: st.error("❌ Passwort falsch.")
+        if pwd_input == DIENST_PW:
+            st.session_state["auth"] = True
+            st.rerun()
     st.stop()
 
 # --- 6. HAUPTPROGRAMM ---
@@ -198,10 +180,10 @@ with st.expander("📝 NEUEN BERICHT ANLEGEN", expanded=True):
             df = pd.read_csv(DATEI) if os.path.exists(DATEI) else pd.DataFrame(columns=COLUMNS)
             df = pd.concat([df, pd.DataFrame([new_data])], ignore_index=True)
             df.to_csv(DATEI, index=False)
-            st.success(f"✅ Bericht gespeichert. Empfänger: {', '.join(RECIPIENTS)}")
+            st.success(f"✅ Bericht gespeichert.")
             st.rerun()
 
-# --- ARCHIV (WIE DAVOR) ---
+# --- ARCHIV ---
 st.divider()
 st.header("📂 Einsatzarchiv")
 if os.path.exists(DATEI):
@@ -237,12 +219,10 @@ if os.path.exists(DATEI):
         
         with c_admin_only:
             if st.session_state["admin_auth"]:
-                pdf_bytes = create_official_pdf(row)
-                st.download_button("📄 PDF Export", pdf_bytes, f"Bericht_{row['AZ']}.pdf", "application/pdf", key=f"pdf_{idx}")
                 if st.button("🗑️ Löschen", key=f"del_{idx}"):
                     df_archive.drop(idx).to_csv(DATEI, index=False)
                     st.rerun()
-            else: st.info("🔒 Admin-Zugriff nötig")
+            else: st.info("🔒 Admin nötig")
 
 # --- ADMIN LOGIN GANZ UNTEN ---
 st.markdown("<br><br><br><hr>", unsafe_allow_html=True)
@@ -252,9 +232,7 @@ with st.expander("🛡️ Administration"):
         if st.button("Admin Login"):
             if admin_pw_in == ADMIN_PW:
                 st.session_state["admin_auth"] = True
-                st.success("Admin-Modus aktiv.")
                 st.rerun()
-            else: st.error("Falsches Passwort.")
     else:
         if st.button("Admin Logout"):
             st.session_state["admin_auth"] = False
