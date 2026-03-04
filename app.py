@@ -10,7 +10,7 @@ from cryptography.fernet import Fernet
 from streamlit_js_eval import get_geolocation 
 from fpdf import FPDF
 
-# --- 1. GLOBALE VARIABLEN & KONFIGURATION ---
+# --- 1. KONFIGURATION & SICHERHEIT ---
 DATEI = "zentral_archiv_secure.csv"
 LOGO_PFAD = "logo.png" 
 COLUMNS = ["Datum", "Beginn", "Ende", "Ort", "Hausnummer", "Zeugen", "Bericht", "AZ", "Foto", "GPS", "Kraefte"]
@@ -18,39 +18,57 @@ ADMIN_PW = "admin789"
 DIENST_PW = "1990" 
 MASTER_KEY = st.secrets.get("master_key", "AugsburgSicherheit32ZeichenCheck!")
 
-st.set_page_config(page_title="KOD Augsburg - Dienst-Login", page_icon="🚓", layout="wide") 
+st.set_page_config(page_title="KOD Augsburg | Dienstportal", page_icon="🚓", layout="wide") 
 
-# --- 2. CSS STYLING (Inkl. professionellem Login-Zentrierer) ---
+# --- 2. ERWEITERTES CSS FÜR BEHÖRDEN-LOOK ---
 st.markdown("""
     <style>
+    /* Haupt-Hintergrund */
+    .stApp { background-color: #f4f7f9; }
+    
+    /* Karten-Design für Berichte */
     .report-card { 
         background-color: #ffffff; 
-        border-radius: 10px; 
-        padding: 20px; 
-        border-left: 10px solid #004b95; 
-        margin-bottom: 15px; 
-        color: #333333;
-        border: 1px solid #dddddd;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        border-radius: 8px; 
+        padding: 25px; 
+        border-top: 5px solid #004b95; 
+        margin-bottom: 20px; 
+        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
     }
+    
+    /* Sektions-Header */
+    .section-header {
+        color: #004b95;
+        font-weight: bold;
+        border-bottom: 2px solid #e0e0e0;
+        padding-bottom: 5px;
+        margin-bottom: 15px;
+        margin-top: 10px;
+    }
+
+    /* Info-Boxen */
     .metric-box {
-        background-color: #f8f9fa;
-        padding: 10px;
-        border-radius: 5px;
+        background-color: #fcfcfc;
+        padding: 12px;
+        border-radius: 6px;
         border: 1px solid #eee;
+        font-size: 0.95em;
     }
-    /* Login-Zentrierung */
-    .stTextInput {
-        max-width: 400px;
-        margin: 0 auto;
+
+    /* Login Box */
+    .login-container {
+        max-width: 450px;
+        margin: 100px auto;
+        padding: 40px;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        text-align: center;
     }
     </style>
     """, unsafe_allow_html=True) 
 
-# --- 3. SICHERHEIT & VERSCHLÜSSELUNG ---
-if "auth" not in st.session_state: st.session_state["auth"] = False
-if "admin_auth" not in st.session_state: st.session_state["admin_auth"] = False 
-
+# --- 3. HELFER-FUNKTIONEN ---
 def get_cipher():
     key_64 = base64.urlsafe_b64encode(MASTER_KEY[:32].encode().ljust(32))
     return Fernet(key_64) 
@@ -64,7 +82,6 @@ def entschluesseln(safe_text):
     try: return get_cipher().decrypt(safe_text.encode()).decode()
     except: return "[DATENFEHLER]" 
 
-# --- 4. PDF GENERIERUNG ---
 def create_official_pdf(row_data):
     pdf = FPDF()
     pdf.add_page()
@@ -110,85 +127,74 @@ def create_official_pdf(row_data):
     pdf.set_font("Arial", '', 11)
     pdf.multi_cell(0, 7, entschluesseln(row_data['Zeugen']), border='T')
 
-    akt_foto = entschluesseln(row_data['Foto'])
-    if akt_foto != "-":
-        pdf.add_page()
-        pdf.set_font("Arial", 'B', 14)
-        pdf.cell(0, 10, "Anlage: Beweismittelfoto", ln=True, align='C')
-        try:
-            img_bytes = base64.b64decode(akt_foto)
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
-                tmp.write(img_bytes)
-                tmp_path = tmp.name
-            pdf.image(tmp_path, x=20, y=40, w=170)
-            os.unlink(tmp_path) 
-        except: pass
-
     pdf.set_y(-25)
     pdf.set_font("Arial", 'I', 8)
-    pdf.cell(0, 10, f"Erstellt: {datetime.now().strftime('%d.%m.%Y')} | Augsburg", align='C')
+    pdf.cell(0, 10, f"Erstellt am {datetime.now().strftime('%d.%m.%Y')} | Stadt Augsburg", align='C')
     return pdf.output(dest="S").encode("latin-1")
 
-# --- 5. PROFESSIONELLES DIENST-LOGIN ---
+# --- 4. LOGIN SEITE ---
+if "auth" not in st.session_state: st.session_state["auth"] = False
+if "admin_auth" not in st.session_state: st.session_state["admin_auth"] = False 
+
 if not st.session_state["auth"]:
-    # Drei Spalten, um das Login-Feld in die Mitte zu rücken
-    _, login_col, _ = st.columns([1, 2, 1])
-    
-    with login_col:
-        st.write("#") # Abstand nach oben
-        st.write("#")
-        st.markdown("<h2 style='text-align: center;'>🔒 Dienst-Login</h2>", unsafe_allow_html=True)
-        st.markdown("<p style='text-align: center; color: gray;'>Kommunaler Ordnungsdienst Augsburg</p>", unsafe_allow_html=True)
+    _, col, _ = st.columns([1, 1.2, 1])
+    with col:
+        st.markdown('<div class="login-container">', unsafe_allow_html=True)
+        st.image("https://img.icons8.com/fluency/96/police-badge.png", width=80)
+        st.markdown("<h3>Dienstportal Login</h3>", unsafe_allow_html=True)
+        st.markdown("<p style='color: gray;'>Stadt Augsburg - Ordnungsamt</p>", unsafe_allow_html=True)
         
-        # Eingabefeld ohne störenden Header darüber
-        pw_input = st.text_input("", type="password", placeholder="Passwort eingeben...", label_visibility="collapsed")
-        
-        if pw_input == DIENST_PW:
+        pw = st.text_input("", type="password", placeholder="Geben Sie Ihr Dienstpasswort ein", label_visibility="collapsed")
+        if pw == DIENST_PW:
             st.session_state["auth"] = True
             st.rerun()
-        elif pw_input != "":
-            st.error("Ungültiges Dienst-Passwort.")
+        elif pw != "":
+            st.error("Zugriff verweigert.")
+        st.markdown('</div>', unsafe_allow_html=True)
     st.stop()
 
-# --- 6. HAUPTSEITE (Erst nach Login sichtbar) ---
-st.title("📋 Einsatzbericht")
+# --- 5. HAUPT-INTERFACE ---
+st.title("🚓 KOD Einsatzportal")
 
-# --- FORMULAR ---
-with st.expander("📝 NEUEN BERICHT ANLEGEN", expanded=True):
-    loc = get_geolocation()
-    gps_val = f"{loc['coords']['latitude']}, {loc['coords']['longitude']}" if loc else "📍 GPS nicht erfasst"
+tab1, tab2 = st.tabs(["📝 Neuer Einsatzbericht", "📂 Archiv & Dokumentation"])
+
+with tab1:
+    st.markdown('<p class="section-header">📁 STAMMDATEN DES EINSATZES</p>', unsafe_allow_html=True)
     
-    st.subheader("📍 Einsatzdetails")
     c1, c2, c3, c4 = st.columns(4)
-    datum = c1.date_input("📅 Datum")
-    beginn = c2.time_input("🕒 Beginn")
-    ende = c3.time_input("🕒 Ende")
-    az_val = c4.text_input("📂 AZ (Aktenzeichen)")
+    datum = c1.date_input("📅 Datum", format="DD.MM.YYYY")
+    beginn = c2.time_input("🕒 Einsatzbeginn")
+    ende = c3.time_input("🕒 Einsatzende")
+    az_val = c4.text_input("📂 Aktenzeichen (AZ)", placeholder="z.B. 2026-004")
     
-    o1, o2 = st.columns([3, 1])
-    ort_val = o1.text_input("🗺️ Einsatzort")
-    hnr_val = o2.text_input("Hausnr.")
-
-    st.subheader("👮 Beteiligte Behörden")
-    k_col1, k_col2, k_col3 = st.columns(3)
-    with k_col1:
-        pol_check = st.checkbox("🚔 Polizei")
-        funkkennung = ""
-        if pol_check:
-            funkkennung = st.text_input("🆔 Funkkennung", placeholder="z.B. Augsburg 12/1")
+    st.markdown('<p class="section-header">📍 ÖRTLICHKEIT</p>', unsafe_allow_html=True)
+    o1, o2, o3 = st.columns([3, 1, 2])
+    ort_val = o1.text_input("🗺️ Einsatzort / Straße", placeholder="An der Blauen Kappe")
+    hnr_val = o2.text_input("Haus-Nr.")
     
-    rtw_check = k_col2.checkbox("🚑 Rettungsdienst")
-    fw_check = k_col3.checkbox("🚒 Feuerwehr")
+    loc = get_geolocation()
+    gps_info = f"{loc['coords']['latitude']}, {loc['coords']['longitude']}" if loc else "Nicht erfasst"
+    o3.info(f"🌐 GPS: {gps_info}")
 
-    with st.form("content_form"):
-        st.subheader("📄 Berichtsinhalt")
-        inhalt = st.text_area("✍️ Sachverhalt", height=150)
-        beteiligte = st.text_input("👥 Beteiligte / Zeugen")
-        bild = st.file_uploader("📸 Foto hochladen", type=["jpg", "png", "jpeg"])
+    st.markdown('<p class="section-header">👮 BETEILIGTE KRÄFTE / BEHÖRDEN</p>', unsafe_allow_html=True)
+    k1, k2, k3 = st.columns(3)
+    pol_check = k1.checkbox("🚔 Polizei Augsburg")
+    rtw_check = k2.checkbox("🚑 Rettungsdienst / Notarzt")
+    fw_check = k3.checkbox("🚒 Feuerwehr")
+    
+    funk = ""
+    if pol_check:
+        funk = st.text_input("🆔 Funkkennung Polizei", placeholder="z.B. Augsburg 12/1")
 
-        if st.form_submit_button("✅ BERICHT SPEICHERN"):
+    st.markdown('<p class="section-header">📑 DOKUMENTATION</p>', unsafe_allow_html=True)
+    with st.form("main_form"):
+        inhalt = st.text_area("✍️ Sachverhalt / Dienstliche Feststellungen", height=200, placeholder="Genaue Beschreibung des Vorfalls...")
+        beteiligte = st.text_input("👥 Beteiligte Personen / Zeugen", placeholder="Name, Geburtsdatum, Anschrift...")
+        bild = st.file_uploader("📸 Beweismittel / Foto", type=["jpg", "png", "jpeg"])
+        
+        if st.form_submit_button("✅ BERICHT REVISIONSSICHER SPEICHERN"):
             k_list = ["KOD"]
-            if pol_check: k_list.append(f"Polizei ({funkkennung})" if funkkennung else "Polizei")
+            if pol_check: k_list.append(f"Polizei ({funk})" if funk else "Polizei")
             if rtw_check: k_list.append("Rettungsdienst")
             if fw_check: k_list.append("Feuerwehr")
             
@@ -201,78 +207,79 @@ with st.expander("📝 NEUEN BERICHT ANLEGEN", expanded=True):
                 b64_img = base64.b64encode(buf.getvalue()).decode()
 
             new_data = {
-                "Datum": str(datum), "Beginn": beginn.strftime("%H:%M"), "Ende": ende.strftime("%H:%M"),
-                "Ort": ort_val, "Hausnummer": hnr_val, "Zeugen": verschluesseln(beteiligte),
-                "Bericht": verschluesseln(inhalt), "AZ": az_val, "Foto": verschluesseln(b64_img),
-                "GPS": gps_val, "Kraefte": verschluesseln(", ".join(k_list))
+                "Datum": datum.strftime("%d.%m.%Y"), 
+                "Beginn": beginn.strftime("%H:%M"), 
+                "Ende": ende.strftime("%H:%M"),
+                "Ort": ort_val, "Hausnummer": hnr_val, 
+                "Zeugen": verschluesseln(beteiligte),
+                "Bericht": verschluesseln(inhalt), 
+                "AZ": az_val, 
+                "Foto": verschluesseln(b64_img),
+                "GPS": gps_info, 
+                "Kraefte": verschluesseln(", ".join(k_list))
             }
             
             df = pd.read_csv(DATEI) if os.path.exists(DATEI) else pd.DataFrame(columns=COLUMNS)
             df = pd.concat([df, pd.DataFrame([new_data])], ignore_index=True)
             df.to_csv(DATEI, index=False)
-            st.success("✅ Bericht gespeichert.")
+            st.success("💾 Einsatzbericht erfolgreich archiviert.")
             st.rerun()
 
-# --- ARCHIV ---
-st.divider()
-st.header("📂 Einsatzarchiv")
-if os.path.exists(DATEI):
-    df_archive = pd.read_csv(DATEI).astype(str)
-    suche = st.text_input("🔍 Suche nach AZ oder Einsatzort...")
-    
-    if suche:
-        df_archive = df_archive[df_archive['AZ'].str.contains(suche, case=False) | df_archive['Ort'].str.contains(suche, case=False)]
-
-    for idx, row in df_archive.iloc[::-1].iterrows():
-        st.markdown(f"""
-            <div class="report-card">
-                <div style="display: flex; justify-content: space-between;">
-                    <span style="font-size: 1.2em;">📂 <strong>AZ: {row['AZ']}</strong></span>
-                    <span>📅 {row['Datum']}</span>
-                </div>
-                <hr style="margin: 10px 0;">
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                    <div class="metric-box">📍 <b>Einsatzort:</b> {row['Ort']} {row['Hausnummer']}</div>
-                    <div class="metric-box">🕒 <b>Zeit:</b> {row['Beginn']} - {row['Ende']}</div>
-                    <div class="metric-box">👮 <b>Kräfte:</b> {entschluesseln(row['Kraefte'])}</div>
-                    <div class="metric-box">🌐 <b>GPS:</b> {row['GPS']}</div>
-                </div>
-            </div>
-        """, unsafe_allow_html=True)
+with tab2:
+    if os.path.exists(DATEI):
+        df_archive = pd.read_csv(DATEI).astype(str)
+        s1, s2 = st.columns([3, 1])
+        suche = s1.text_input("🔍 Suche im Archiv (AZ oder Ort)...")
         
-        c_det, c_admin_only = st.columns([3, 1])
-        with c_det:
-            with st.expander("👁️ Details anzeigen"):
-                st.info(f"**✍️ Sachverhalt:**\n{entschluesseln(row['Bericht'])}")
-                st.warning(f"**👥 Beteiligte:** {entschluesseln(row['Zeugen'])}")
-                img_data = entschluesseln(row['Foto'])
-                if img_data != "-": st.image(base64.b64decode(img_data), width=400)
-        
-        with c_admin_only:
-            if st.session_state.get("admin_auth", False):
-                pdf_bytes = create_official_pdf(row)
-                st.download_button("📄 PDF Export", pdf_bytes, f"Bericht_{row['AZ']}.pdf", "application/pdf", key=f"pdf_{idx}")
-                if st.button("🗑️ Löschen", key=f"del_{idx}"):
-                    df_archive.drop(idx).to_csv(DATEI, index=False)
-                    st.rerun()
-            else:
-                st.info("🔒 Admin nötig")
+        if suche:
+            df_archive = df_archive[df_archive['AZ'].str.contains(suche, case=False) | df_archive['Ort'].str.contains(suche, case=False)]
 
-# --- SIDEBAR (ADMIN-LOGIN) ---
+        for idx, row in df_archive.iloc[::-1].iterrows():
+            st.markdown(f"""
+                <div class="report-card">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="font-size: 1.3em; color: #004b95;">📂 <b>Aktenzeichen: {row['AZ']}</b></span>
+                        <span style="background: #e1f5fe; padding: 5px 12px; border-radius: 15px; font-size: 0.85em;">📅 {row['Datum']}</span>
+                    </div>
+                    <hr style="margin: 15px 0; border: 0.5px solid #eee;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px;">
+                        <div class="metric-box">📍 <b>Ort:</b><br>{row['Ort']} {row['Hausnummer']}</div>
+                        <div class="metric-box">🕒 <b>Dauer:</b><br>{row['Beginn']} - {row['Ende']} Uhr</div>
+                        <div class="metric-box">👮 <b>Kräfte:</b><br>{entschluesseln(row['Kraefte'])}</div>
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
+            
+            c_det, c_adm = st.columns([3, 1])
+            with c_det:
+                with st.expander("👁️ Vollständige Dokumentation einsehen"):
+                    st.markdown("### ✍️ Sachverhalt")
+                    st.write(entschluesseln(row['Bericht']))
+                    st.markdown("### 👥 Beteiligte / Zeugen")
+                    st.write(entschluesseln(row['Zeugen']))
+                    img_data = entschluesseln(row['Foto'])
+                    if img_data != "-":
+                        st.image(base64.b64decode(img_data), caption=f"Beweisfoto zu AZ {row['AZ']}", width=500)
+            
+            with c_adm:
+                if st.session_state.get("admin_auth", False):
+                    pdf_bytes = create_official_pdf(row)
+                    st.download_button("📄 PDF Dienstkopie", pdf_bytes, f"Bericht_{row['AZ']}.pdf", "application/pdf", key=f"pdf_{idx}")
+                    if st.button("🗑️ Löschen", key=f"del_{idx}"):
+                        df_archive.drop(idx).to_csv(DATEI, index=False)
+                        st.rerun()
+                else:
+                    st.caption("🔒 Funktionen gesperrt")
+
+# --- 6. SIDEBAR (ADMIN) ---
 with st.sidebar:
-    st.title("🛡️ Administration")
-    if st.checkbox("🔑 Admin-Modus"):
-        admin_pw_input = st.text_input("Admin-Passwort", type="password")
-        if admin_pw_input == ADMIN_PW:
-            if not st.session_state["admin_auth"]:
-                st.session_state["admin_auth"] = True
-                st.rerun()
-            st.success("Admin-Modus aktiv")
+    st.markdown("### 🛡️ Admin-Bereich")
+    if st.checkbox("Admin-Funktionen freischalten"):
+        pw = st.text_input("Admin-Key", type="password")
+        if pw == ADMIN_PW:
+            st.session_state["admin_auth"] = True
+            st.success("Admin-Status: AKTIV")
         else:
-            if st.session_state["admin_auth"]:
-                st.session_state["admin_auth"] = False
-                st.rerun()
-    else:
-        if st.session_state["admin_auth"]:
             st.session_state["admin_auth"] = False
-            st.rerun()
+    else:
+        st.session_state["admin_auth"] = False
