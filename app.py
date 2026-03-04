@@ -26,20 +26,14 @@ st.set_page_config(page_title="KOD Augsburg - Einsatzbericht", page_icon="🚓",
 # --- 2. CSS STYLING (SICHERHEIT & DESIGN) ---
 st.markdown("""
     <style>
-    /* SICHERHEIT: Alle Streamlit-Standardelemente hart entfernen */
     #MainMenu {visibility: hidden;}
     header {visibility: hidden;}
     footer {visibility: hidden;}
     div.stDeployButton {display:none;}
-    
-    /* Entfernt die 'Manage App' Leiste und den Button unten rechts */
     [data-testid="stDecoration"] {display:none !important;} 
     [data-testid="stStatusWidget"] {display:none !important;}
-    
-    /* Versteckt die Sidebar komplett */
     [data-testid="stSidebar"] {display: none;}
 
-    /* FIXIERTER HEADER */
     .sticky-header {
         position: fixed;
         top: 0;
@@ -77,7 +71,6 @@ st.markdown("""
         border: 2px solid #004b95; 
         border-radius: 15px; 
         background-color: #f8f9fa; 
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     }
     </style>
     """, unsafe_allow_html=True) 
@@ -103,16 +96,8 @@ def entschluesseln(safe_text):
 def create_official_pdf(row_data):
     pdf = FPDF()
     pdf.add_page()
-    if os.path.exists(LOGO_PFAD):
-        pdf.image(LOGO_PFAD, x=160, y=10, w=35)
     pdf.set_font("Arial", 'B', 16)
-    pdf.cell(0, 10, "STADT AUGSBURG", ln=True)
-    pdf.set_font("Arial", 'B', 12)
-    pdf.cell(0, 7, "ORDNUNGSAMT / KOD", ln=True)
-    pdf.line(10, 38, 200, 38)
-    pdf.ln(15)
-    pdf.set_font("Arial", 'B', 14)
-    pdf.cell(0, 10, "AMTLICHER EINSATZBERICHT", ln=True, align='C')
+    pdf.cell(0, 10, "STADT AUGSBURG - KOD BERICHT", ln=True)
     return pdf.output(dest="S").encode("latin-1")
 
 # --- 5. LOGIN ---
@@ -120,15 +105,8 @@ if not st.session_state["auth"]:
     st.markdown("<br><br><br>", unsafe_allow_html=True)
     _, col_mid, _ = st.columns([1, 1.5, 1])
     with col_mid:
-        st.markdown("""
-            <div class="login-box">
-                <h1 style="font-size: 3em; margin-bottom: 0;">🔑</h1>
-                <h2 style="color: #004b95; margin-top: 10px;">Sicherheitsbereich</h2>
-                <hr style="border: 0.5px solid #004b95; width: 50%; margin: 20px auto;">
-                <p style="color: #555;">KOD Augsburg - Identifikation erforderlich</p>
-            </div>
-        """, unsafe_allow_html=True)
-        pwd_input = st.text_input("Dienstpasswort", type="password", label_visibility="collapsed", placeholder="Passwort eingeben...")
+        st.markdown('<div class="login-box"><h2>🔑 KOD Login</h2></div>', unsafe_allow_html=True)
+        pwd_input = st.text_input("Dienstpasswort", type="password", placeholder="Eingeben...")
         if pwd_input == DIENST_PW:
             st.session_state["auth"] = True
             st.rerun()
@@ -157,25 +135,40 @@ with st.expander("📝 NEUEN BERICHT ANLEGEN", expanded=True):
     ort_val = o1.text_input("🗺️ Einsatzort")
     hnr_val = o2.text_input("Hausnr.")
 
+    # --- WIEDER EINGEFÜGT: BEHÖRDEN ---
+    st.subheader("👮 Beteiligte Behörden")
+    k_col1, k_col2, k_col3 = st.columns(3)
+    with k_col1:
+        pol_check = st.checkbox("🚔 Polizei")
+        funkkennung = st.text_input("🆔 Funkkennung", placeholder="Augsburg...") if pol_check else ""
+    rtw_check = k_col2.checkbox("🚑 Rettungsdienst")
+    fw_check = k_col3.checkbox("🚒 Feuerwehr")
+
     with st.form("content_form"):
+        st.subheader("📄 Berichtsinhalt")
         inhalt = st.text_area("✍️ Sachverhalt", height=150)
         beteiligte = st.text_input("👥 Beteiligte / Zeugen")
         bild = st.file_uploader("📸 Foto hochladen", type=["jpg", "png"])
 
         if st.form_submit_button("✅ BERICHT SPEICHERN"):
+            k_list = ["KOD"]
+            if pol_check: k_list.append(f"Polizei ({funkkennung})" if funkkennung else "Polizei")
+            if rtw_check: k_list.append("Rettungsdienst")
+            if fw_check: k_list.append("Feuerwehr")
+            
             b64_img = "-"
             if bild:
                 img = Image.open(bild).convert("RGB")
                 img.thumbnail((1200, 1200))
                 buf = io.BytesIO()
-                img.save(buf, format="JPEG", quality=80)
+                img.save(buf, format="JPEG")
                 b64_img = base64.b64encode(buf.getvalue()).decode()
 
             new_data = {
                 "Datum": str(datum), "Beginn": beginn.strftime("%H:%M"), "Ende": ende.strftime("%H:%M"),
                 "Ort": ort_val, "Hausnummer": hnr_val, "Zeugen": verschluesseln(beteiligte),
                 "Bericht": verschluesseln(inhalt), "AZ": az_val, "Foto": verschluesseln(b64_img),
-                "GPS": gps_val, "Kraefte": verschluesseln("KOD")
+                "GPS": gps_val, "Kraefte": verschluesseln(", ".join(k_list))
             }
             df = pd.read_csv(DATEI) if os.path.exists(DATEI) else pd.DataFrame(columns=COLUMNS)
             df = pd.concat([df, pd.DataFrame([new_data])], ignore_index=True)
@@ -209,20 +202,16 @@ if os.path.exists(DATEI):
             </div>
         """, unsafe_allow_html=True)
         
-        c_det, c_admin_only = st.columns([3, 1])
-        with c_det:
-            with st.expander("👁️ Details anzeigen"):
-                st.info(f"**✍️ Sachverhalt:**\n{entschluesseln(row['Bericht'])}")
-                st.warning(f"**👥 Beteiligte:** {entschluesseln(row['Zeugen'])}")
-                img_data = entschluesseln(row['Foto'])
-                if img_data != "-": st.image(base64.b64decode(img_data), width=400)
-        
-        with c_admin_only:
+        with st.expander("👁️ Details anzeigen"):
+            st.info(f"**✍️ Sachverhalt:**\n{entschluesseln(row['Bericht'])}")
+            st.warning(f"**👥 Beteiligte:** {entschluesseln(row['Zeugen'])}")
+            img_data = entschluesseln(row['Foto'])
+            if img_data != "-": st.image(base64.b64decode(img_data), width=400)
+            
             if st.session_state["admin_auth"]:
                 if st.button("🗑️ Löschen", key=f"del_{idx}"):
                     df_archive.drop(idx).to_csv(DATEI, index=False)
                     st.rerun()
-            else: st.info("🔒 Admin nötig")
 
 # --- ADMIN LOGIN GANZ UNTEN ---
 st.markdown("<br><br><br><hr>", unsafe_allow_html=True)
