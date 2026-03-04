@@ -10,7 +10,7 @@ from cryptography.fernet import Fernet
 from streamlit_js_eval import get_geolocation 
 from fpdf import FPDF
 
-# --- 1. GLOBALE VARIABLEN & KONFIGURATION ---
+# --- 1. GLOBALE VARIABLEN ---
 DATEI = "zentral_archiv_secure.csv"
 LOGO_PFAD = "logo.png" 
 COLUMNS = ["Datum", "Beginn", "Ende", "Ort", "Hausnummer", "Zeugen", "Bericht", "AZ", "Foto", "GPS", "Kraefte"]
@@ -20,7 +20,7 @@ MASTER_KEY = st.secrets.get("master_key", "AugsburgSicherheit32ZeichenCheck!")
 
 st.set_page_config(page_title="KOD Augsburg - Einsatzbericht", page_icon="🚓", layout="wide") 
 
-# --- 2. CSS STYLING (Wiederhergestellt) ---
+# --- 2. CSS STYLING ---
 st.markdown("""
     <style>
     .report-card { 
@@ -42,7 +42,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True) 
 
-# --- 3. SICHERHEIT & VERSCHLÜSSELUNG ---
+# --- 3. SICHERHEIT ---
 if "auth" not in st.session_state: st.session_state["auth"] = False
 if "admin_auth" not in st.session_state: st.session_state["admin_auth"] = False 
 
@@ -134,34 +134,38 @@ if not st.session_state["auth"]:
 
 st.title("📋 Einsatzbericht")
 
-# --- FORMULAR ---
+# --- FORMULAR (KORRIGIERT FÜR POLIZEI-AUFKLAPPEN) ---
 with st.expander("📝 NEUEN BERICHT ANLEGEN", expanded=True):
     loc = get_geolocation()
     gps_val = f"{loc['coords']['latitude']}, {loc['coords']['longitude']}" if loc else "📍 GPS nicht erfasst"
     
-    with st.form("main_form", clear_on_submit=True):
-        st.subheader("📍 Einsatzdetails")
-        c1, c2, c3, c4 = st.columns(4)
-        datum = c1.date_input("📅 Datum")
-        beginn = c2.time_input("🕒 Beginn")
-        ende = c3.time_input("🕒 Ende")
-        az_val = c4.text_input("📂 AZ (Aktenzeichen)")
-        
-        o1, o2 = st.columns([3, 1])
-        ort_val = o1.text_input("🗺️ Einsatzort")
-        hnr_val = o2.text_input("Hausnr.")
+    # Die Behörden-Checkboxes müssen für Echtzeit-Reaktion außerhalb 
+    # des Form-Buttons stehen oder wir nutzen Session-State.
+    st.subheader("📍 Einsatzdetails")
+    c1, c2, c3, c4 = st.columns(4)
+    datum = c1.date_input("📅 Datum")
+    beginn = c2.time_input("🕒 Beginn")
+    ende = c3.time_input("🕒 Ende")
+    az_val = c4.text_input("📂 AZ (Aktenzeichen)")
+    
+    o1, o2 = st.columns([3, 1])
+    ort_val = o1.text_input("🗺️ Einsatzort")
+    hnr_val = o2.text_input("Hausnr.")
 
-        st.subheader("👮 Beteiligte Behörden")
-        k_col1, k_col2, k_col3 = st.columns(3)
-        with k_col1:
-            pol_check = st.checkbox("🚔 Polizei")
-            funkkennung = ""
-            if pol_check:
-                funkkennung = st.text_input("🆔 Funkkennung", placeholder="z.B. Augsburg 12/1")
-        
-        rtw_check = k_col2.checkbox("🚑 Rettungsdienst")
-        fw_check = k_col3.checkbox("🚒 Feuerwehr")
+    st.subheader("👮 Beteiligte Behörden")
+    k_col1, k_col2, k_col3 = st.columns(3)
+    with k_col1:
+        # HIER DIE KORREKTUR:
+        pol_check = st.checkbox("🚔 Polizei")
+        funkkennung = ""
+        if pol_check:
+            funkkennung = st.text_input("🆔 Funkkennung", placeholder="z.B. Augsburg 12/1")
+    
+    rtw_check = k_col2.checkbox("🚑 Rettungsdienst")
+    fw_check = k_col3.checkbox("🚒 Feuerwehr")
 
+    # Der eigentliche Speicher-Button in einem kleinen Form-Container für die Texte
+    with st.form("content_form"):
         st.subheader("📄 Berichtsinhalt")
         inhalt = st.text_area("✍️ Sachverhalt", height=150)
         beteiligte = st.text_input("👥 Beteiligte / Zeugen")
@@ -194,7 +198,7 @@ with st.expander("📝 NEUEN BERICHT ANLEGEN", expanded=True):
             st.success("✅ Bericht gespeichert.")
             st.rerun()
 
-# --- ARCHIV (Originales Layout wiederhergestellt) ---
+# --- ARCHIV ---
 st.divider()
 st.header("📂 Einsatzarchiv")
 if os.path.exists(DATEI):
@@ -205,7 +209,6 @@ if os.path.exists(DATEI):
         df_archive = df_archive[df_archive['AZ'].str.contains(suche, case=False) | df_archive['Ort'].str.contains(suche, case=False)]
 
     for idx, row in df_archive.iloc[::-1].iterrows():
-        # Hier ist das ursprüngliche Card-Layout
         st.markdown(f"""
             <div class="report-card">
                 <div style="display: flex; justify-content: space-between;">
@@ -240,7 +243,7 @@ if os.path.exists(DATEI):
             else:
                 st.info("🔒 Admin nötig")
 
-# --- ADMIN SIDEBAR ---
+# --- SIDEBAR (ADMIN-LOGIN) ---
 with st.sidebar:
     st.title("🛡️ Administration")
     if st.checkbox("🔑 Admin-Modus"):
