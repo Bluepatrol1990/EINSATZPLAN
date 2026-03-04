@@ -10,40 +10,21 @@ from cryptography.fernet import Fernet
 from streamlit_js_eval import get_geolocation 
 from fpdf import FPDF
 
-# --- 1. GLOBALE VARIABLEN ---
+# --- 1. GLOBALE VARIABLEN & KONFIGURATION ---
 DATEI = "zentral_archiv_secure.csv"
 LOGO_PFAD = "logo.png" 
 COLUMNS = ["Datum", "Beginn", "Ende", "Ort", "Hausnummer", "Zeugen", "Bericht", "AZ", "Foto", "GPS", "Kraefte"]
+
+# Passwörter
 ADMIN_PW = "admin789"
-# ÄNDERUNG: Passwort ist jetzt 1990
-DIENST_PW = "1990" 
+DIENST_PW = "1990"  # Geändert auf 1990
+
+# Sicherheits-Key (sollte normalerweise in st.secrets stehen)
 MASTER_KEY = st.secrets.get("master_key", "AugsburgSicherheit32ZeichenCheck!")
 
-# --- 2. SEITEN-KONFIGURATION ---
 st.set_page_config(page_title="KOD Augsburg - Einsatzbericht", page_icon="🚓", layout="wide") 
 
-st.markdown("""
-    <style>
-    .report-card { 
-        background-color: #ffffff; 
-        border-radius: 10px; 
-        padding: 20px; 
-        border-left: 10px solid #004b95; 
-        margin-bottom: 15px; 
-        color: #333333;
-        border: 1px solid #dddddd;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    }
-    .metric-box {
-        background-color: #f8f9fa;
-        padding: 10px;
-        border-radius: 5px;
-        border: 1px solid #eee;
-    }
-    </style>
-    """, unsafe_allow_html=True) 
-
-# --- 3. SICHERHEIT ---
+# --- 2. SICHERHEIT & VERSCHLÜSSELUNG ---
 if "auth" not in st.session_state: st.session_state["auth"] = False
 if "admin_auth" not in st.session_state: st.session_state["admin_auth"] = False 
 
@@ -60,7 +41,7 @@ def entschluesseln(safe_text):
     try: return get_cipher().decrypt(safe_text.encode()).decode()
     except: return "[DATENFEHLER]" 
 
-# --- 4. PDF FUNKTION ---
+# --- 3. PDF GENERIERUNG ---
 def create_official_pdf(row_data):
     pdf = FPDF()
     pdf.add_page()
@@ -125,18 +106,17 @@ def create_official_pdf(row_data):
     pdf.cell(0, 10, f"Erstellt: {datetime.now().strftime('%d.%m.%Y')} | Augsburg", align='C')
     return pdf.output(dest="S").encode("latin-1")
 
-# --- 5. APP LOGIK ---
+# --- 4. LOGIN LOGIK ---
 if not st.session_state["auth"]:
     st.title("🚓 KOD Augsburg")
-    # Login mit 1990
     if st.text_input("🔑 Dienstpasswort", type="password") == DIENST_PW:
         st.session_state["auth"] = True
         st.rerun()
     st.stop()
 
+# --- 5. HAUPTMENÜ & FORMULAR ---
 st.title("📋 Einsatzbericht")
 
-# --- FORMULAR ---
 with st.expander("📝 NEUEN BERICHT ANLEGEN", expanded=True):
     loc = get_geolocation()
     gps_val = f"{loc['coords']['latitude']}, {loc['coords']['longitude']}" if loc else "📍 GPS nicht erfasst"
@@ -196,7 +176,7 @@ with st.expander("📝 NEUEN BERICHT ANLEGEN", expanded=True):
             st.success("✅ Bericht gespeichert.")
             st.rerun()
 
-# --- ARCHIV ---
+# --- 6. ARCHIV & ADMIN-TOOLS ---
 st.divider()
 st.header("📂 Einsatzarchiv")
 if os.path.exists(DATEI):
@@ -208,45 +188,45 @@ if os.path.exists(DATEI):
 
     for idx, row in df_archive.iloc[::-1].iterrows():
         st.markdown(f"""
-            <div class="report-card">
-                <div style="display: flex; justify-content: space-between;">
-                    <span style="font-size: 1.2em;">📂 <strong>AZ: {row['AZ']}</strong></span>
-                    <span>📅 {row['Datum']}</span>
-                </div>
-                <hr style="margin: 10px 0;">
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                    <div class="metric-box">📍 <b>Ort:</b> {row['Ort']} {row['Hausnummer']}</div>
-                    <div class="metric-box">🕒 <b>Zeit:</b> {row['Beginn']} - {row['Ende']}</div>
-                    <div class="metric-box">👮 <b>Kräfte:</b> {entschluesseln(row['Kraefte'])}</div>
-                </div>
+            <div style="background-color: #f0f2f6; border-radius: 10px; padding: 15px; margin-bottom: 10px; border-left: 5px solid #004b95;">
+                <b>AZ: {row['AZ']}</b> | 📅 {row['Datum']} | 📍 {row['Ort']} {row['Hausnummer']}<br>
+                <small>🕒 {row['Beginn']} - {row['Ende']} Uhr | 👮 {entschluesseln(row['Kraefte'])}</small>
             </div>
         """, unsafe_allow_html=True)
         
-        c_det, c_admin_only = st.columns([3, 1])
+        c_det, c_admin = st.columns([3, 1])
         with c_det:
-            with st.expander("👁️ Details"):
+            with st.expander("👁️ Details anzeigen"):
                 st.info(f"**Sachverhalt:**\n{entschluesseln(row['Bericht'])}")
                 st.warning(f"**Beteiligte:** {entschluesseln(row['Zeugen'])}")
                 img_data = entschluesseln(row['Foto'])
                 if img_data != "-": st.image(base64.b64decode(img_data), width=400)
         
-        with c_admin_only:
-            # ÄNDERUNG: PDF-Export nur, wenn admin_auth aktiv ist
-            if st.session_state["admin_auth"]:
+        with c_admin:
+            if st.session_state.get("admin_auth", False):
                 pdf_bytes = create_official_pdf(row)
                 st.download_button("📄 PDF Export", pdf_bytes, f"Bericht_{row['AZ']}.pdf", "application/pdf", key=f"pdf_{idx}")
                 if st.button("🗑️ Löschen", key=f"del_{idx}"):
                     df_archive.drop(idx).to_csv(DATEI, index=False)
                     st.rerun()
             else:
-                st.caption("🔒 Export gesperrt (Admin-Login nötig)")
+                st.info("🔒 Export: Admin nötig")
 
-# --- ADMIN ---
+# --- 7. SIDEBAR (ADMIN-LOGIN) ---
 with st.sidebar:
     st.title("🛡️ Administration")
     if st.checkbox("🔑 Admin-Modus"):
-        if st.text_input("Admin-Passwort", type="password") == ADMIN_PW:
-            st.session_state["admin_auth"] = True
+        admin_pw_input = st.text_input("Admin-Passwort", type="password")
+        if admin_pw_input == ADMIN_PW:
+            if not st.session_state["admin_auth"]:
+                st.session_state["admin_auth"] = True
+                st.rerun()
             st.success("Admin-Modus aktiv")
         else:
+            if st.session_state["admin_auth"]:
+                st.session_state["admin_auth"] = False
+                st.rerun()
+    else:
+        if st.session_state["admin_auth"]:
             st.session_state["admin_auth"] = False
+            st.rerun()
