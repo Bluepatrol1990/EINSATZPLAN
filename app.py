@@ -22,7 +22,7 @@ MASTER_KEY = st.secrets.get("master_key", "AugsburgSicherheit32ZeichenCheck!")
 
 st.set_page_config(page_title="KOD Augsburg - Einsatzbericht", page_icon="🚓", layout="wide") 
 
-# --- 2. DARK MODE & WEISSE SCHRIFT ---
+# --- 2. DARK MODE & KORRIGIERTE SCHRIFTFARBEN ---
 st.markdown("""
     <style>
     /* Dark Mode Grundgerüst */
@@ -31,9 +31,21 @@ st.markdown("""
         color: #ffffff !important;
     }
     
-    /* Alle Standard-Texte auf Weiß zwingen */
-    h1, h2, h3, p, span, label, .stMarkdown {
+    /* Alle Standard-Texte auf Weiß */
+    h1, h2, h3, p, span, label, .stMarkdown, .stCheckbox {
         color: #ffffff !important;
+    }
+
+    /* KORREKTUR: Text in Eingabefeldern (Inputs, Textareas) sichtbar machen */
+    input, textarea, select {
+        color: #ffffff !important;
+        background-color: #262730 !important;
+    }
+
+    /* Speziell für Streamlit Eingabefelder */
+    .stTextInput>div>div>input, .stTextArea>div>div>textarea {
+        color: #ffffff !important;
+        background-color: #262730 !important;
     }
 
     .report-card { 
@@ -53,11 +65,6 @@ st.markdown("""
         border-radius: 5px;
         border: 1px solid #444;
         color: #ffffff !important;
-    }
-
-    /* Falls ein Element einen weißen Hintergrund hat (z.B. Tooltips), Schrift schwarz */
-    .white-bg-text {
-        color: #000000 !important;
     }
 
     /* Header-Bereinigung */
@@ -184,7 +191,7 @@ with st.expander("📝 NEUEN BERICHT ANLEGEN", expanded=True):
         pol_check = st.checkbox("🚔 Polizei")
         funkkennung = ""
         if pol_check:
-            funkkennung = st.text_input("🆔 Funkkennung")
+            funkkennung = st.text_input("🆔 Funkkennung", placeholder="z.B. Augsburg 12/1")
     
     rtw_check = k_col2.checkbox("🚑 Rettungsdienst")
     fw_check = k_col3.checkbox("🚒 Feuerwehr")
@@ -264,25 +271,25 @@ if os.path.exists(DATEI):
                 if st.button("🗑️ Löschen", key=f"del_{idx}"):
                     df_archive.drop(idx).to_csv(DATEI, index=False)
                     st.rerun()
+            else:
+                st.info("🔒 Admin-Bereich")
 
 # --- ADMIN LOGIN GANZ UNTEN ---
 st.write("")
-st.write("")
 st.divider()
-with st.container():
-    c1, c2, c3 = st.columns([2, 1, 2])
-    with c2:
-        if not st.session_state["admin_auth"]:
-            if st.button("🛡️ Admin-Anmeldung"):
-                st.session_state["show_admin_login"] = True
-            
-            if st.session_state.get("show_admin_login", False):
-                adm_input = st.text_input("Admin-Passwort", type="password")
-                if adm_input == ADMIN_PW:
-                    st.session_state["admin_auth"] = True
-                    st.session_state["show_admin_login"] = False
-                    st.rerun()
-        else:
-            if st.button("🚪 Admin Logout"):
-                st.session_state["admin_auth"] = False
+c1, c2, c3 = st.columns([2, 1, 2])
+with c2:
+    if not st.session_state["admin_auth"]:
+        if st.button("🛡️ Admin-Anmeldung"):
+            st.session_state["show_admin_login"] = True
+        
+        if st.session_state.get("show_admin_login", False):
+            adm_input = st.text_input("Admin-Passwort", type="password", key="admin_pwd_field")
+            if adm_input == ADMIN_PW:
+                st.session_state["admin_auth"] = True
+                st.session_state["show_admin_login"] = False
                 st.rerun()
+    else:
+        if st.button("🚪 Admin Logout"):
+            st.session_state["admin_auth"] = False
+            st.rerun()
