@@ -18,23 +18,27 @@ ADMIN_PW = "admin789"
 DIENST_PW = "1990" 
 MASTER_KEY = st.secrets.get("master_key", "AugsburgSicherheit32ZeichenCheck!")
 
-# Deine hinterlegten Empfänger
+# Hinterlegte Empfänger aus deinen Vorgaben
 RECIPIENTS = ["Kevin.woelki@augsburg.de", "kevinworlki@outlook.de"]
 
 st.set_page_config(page_title="KOD Augsburg - Einsatzbericht", page_icon="🚓", layout="wide") 
 
-# --- 2. CSS STYLING (SICHERHEIT & DESIGN) ---
+# --- 2. CSS STYLING (MAXIMALE BEREINIGUNG) ---
 st.markdown("""
     <style>
-    /* SICHERHEIT: Streamlit-Standardelemente komplett entfernen */
+    /* Entfernt das Hauptmenü und die Standard-Header */
     #MainMenu {visibility: hidden;}
     header {visibility: hidden;}
     footer {visibility: hidden;}
-    div.stDeployButton {display:none;}
     
-    /* MANAGE APP & STATUS-LEISTE ENTFERNEN */
-    [data-testid="stDecoration"] {display:none !important;} 
+    /* Entfernt den 'Deploy'-Button oben rechts */
+    .stAppDeployButton {display:none !important;}
+    div.stDeployButton {display:none !important;}
+    
+    /* Entfernt 'Manage app' und das Burger-Menü unten rechts komplett */
+    button[title="View menu"] {display:none !important;}
     [data-testid="stStatusWidget"] {display:none !important;}
+    [data-testid="stDecoration"] {display:none !important;}
     footer {display:none !important;}
     
     /* Versteckt die Sidebar komplett */
@@ -144,7 +148,7 @@ def create_official_pdf(row_data):
 
     return pdf.output(dest="S").encode("latin-1")
 
-# --- 5. LOGIN (WIE DAVOR) ---
+# --- 5. LOGIN ---
 if not st.session_state["auth"]:
     st.markdown("<br><br><br>", unsafe_allow_html=True)
     _, col_mid, _ = st.columns([1, 1.5, 1])
