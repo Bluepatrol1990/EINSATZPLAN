@@ -18,58 +18,73 @@ ADMIN_PW = "admin789"
 DIENST_PW = "1990" 
 MASTER_KEY = st.secrets.get("master_key", "AugsburgSicherheit32ZeichenCheck!")
 
-# Empfänger gemäß Anweisung: "Kevin.woelki@augsburg.de" und "kevinworlki@outlook.de"
+# Empfänger: Kevin.woelki@augsburg.de und kevinworlki@outlook.de
 
 st.set_page_config(page_title="KOD Augsburg - Einsatzbericht", page_icon="🚓", layout="wide") 
 
-# --- 2. KORRIGIERTES CSS FÜR SCHWARZE INPUTS ---
+# --- 2. OPTIMIERTES KONTRAST-DESIGN (SCHWARZ/WEISS) ---
 st.markdown("""
     <style>
-    /* Dark Mode Grundgerüst */
+    /* Grundhintergrund der App */
     .stApp {
         background-color: #0e1117;
     }
     
-    /* Alle Texte auf Weiß */
-    h1, h2, h3, p, span, label, .stMarkdown, .stCheckbox {
+    /* Alle Text-Elemente auf Reinweiß für maximale Lesbarkeit */
+    h1, h2, h3, h4, p, span, label, .stMarkdown, .stCheckbox p, .stExpander p {
         color: #ffffff !important;
+        font-weight: 500;
     }
 
-    /* NEUEN BERICHT ANLEGEN - Expander Hintergrund */
-    .streamlit-expanderHeader {
-        background-color: #1e2128 !important;
-        color: white !important;
-    }
-
-    /* SCHWARZER HINTERGRUND FÜR ALLE INPUTS (Besonders Beginn/Ende) */
+    /* EINGABEFELDER: Schwarzer Hintergrund, Weiße Schrift, Helle Umrandung */
     input, textarea, [data-baseweb="input"], [data-baseweb="select"] > div {
         background-color: #000000 !important;
         color: #ffffff !important;
-        border: 1px solid #444 !important;
+        border: 2px solid #555555 !important; /* Deutlichere Umrandung */
+        border-radius: 5px !important;
     }
 
-    /* Spezifisch für Zeit- und Datumswähler von Streamlit */
-    div[data-baseweb="input"] input {
-        color: #ffffff !important;
+    /* Verhindert, dass Browser (Chrome/Safari) die Schriftfarbe überschreiben */
+    input {
         -webkit-text-fill-color: #ffffff !important;
     }
 
-    /* Report Cards im Archiv */
+    /* Platzhalter-Text in hellgrau */
+    ::placeholder {
+        color: #cccccc !important;
+        opacity: 1;
+    }
+
+    /* Expander / Klappmenü Design */
+    .streamlit-expanderHeader {
+        background-color: #1e2128 !important;
+        border: 1px solid #444 !important;
+        color: #ffffff !important;
+    }
+
+    /* Archiv-Karten */
     .report-card { 
-        background-color: #1e2128; 
+        background-color: #161b22; 
         border-radius: 10px; 
         padding: 20px; 
         border-left: 10px solid #004b95; 
         margin-bottom: 15px; 
-        border: 1px solid #333333;
+        border: 1px solid #30363d;
     }
 
+    /* Infoboxen im Archiv */
     .metric-box {
         background-color: #000000;
         padding: 10px;
         border-radius: 5px;
-        border: 1px solid #333;
+        border: 1px solid #555555;
         color: #ffffff !important;
+    }
+
+    /* Buttons besser sichtbar machen */
+    .stButton>button {
+        border-radius: 5px;
+        font-weight: bold;
     }
 
     /* Header ausblenden */
@@ -166,7 +181,7 @@ if not st.session_state["auth"]:
     _, col_center, _ = st.columns([1, 2, 1])
     with col_center:
         st.markdown('<div style="text-align:center; margin-top:100px;"><h1>🔒</h1><h2>Sicherheitsbereich</h2></div>', unsafe_allow_html=True)
-        pw_input = st.text_input("Dienstpasswort", type="password")
+        pw_input = st.text_input("Dienstpasswort", type="password", key="login_main")
         if pw_input == DIENST_PW:
             st.session_state["auth"] = True
             st.rerun()
@@ -196,7 +211,7 @@ with st.expander("📝 NEUEN BERICHT ANLEGEN", expanded=True):
         pol_check = st.checkbox("🚔 Polizei")
         funkkennung = ""
         if pol_check:
-            funkkennung = st.text_input("🆔 Funkkennung", placeholder="Augsburg xx/x")
+            funkkennung = st.text_input("🆔 Funkkennung", placeholder="Augsburg 12/1")
     
     rtw_check = k_col2.checkbox("🚑 Rettungsdienst")
     fw_check = k_col3.checkbox("🚒 Feuerwehr")
@@ -276,6 +291,8 @@ if os.path.exists(DATEI):
                 if st.button("🗑️ Löschen", key=f"del_{idx}"):
                     df_archive.drop(idx).to_csv(DATEI, index=False)
                     st.rerun()
+            else:
+                st.info("🔒 Admin-Bereich")
 
 # --- ADMIN LOGIN GANZ UNTEN ---
 st.write("")
@@ -287,7 +304,7 @@ with c2:
             st.session_state["show_admin_login"] = True
         
         if st.session_state.get("show_admin_login", False):
-            adm_input = st.text_input("Admin-Passwort", type="password", key="adm_final")
+            adm_input = st.text_input("Admin-Passwort", type="password", key="admin_key_final")
             if adm_input == ADMIN_PW:
                 st.session_state["admin_auth"] = True
                 st.session_state["show_admin_login"] = False
