@@ -11,12 +11,12 @@ from streamlit_js_eval import get_geolocation
 from fpdf import FPDF 
 
 # --- 1. KONFIGURATION & SICHERHEIT ---
-# Nutzung von Secrets (empfohlen) oder Fallback-Werten
+# Passwort auf 1990 geändert. Secrets haben Vorrang, falls in Streamlit Cloud gesetzt.
 ADMIN_PW = st.secrets.get("admin_password", "admin789")
-DIENST_PW = st.secrets.get("dienst_password", "1990")
+DIENST_PW = st.secrets.get("dienst_password", "1990") 
 MASTER_KEY = st.secrets.get("master_key", "AugsburgSicherheit32ZeichenCheck!")
 
-# Hinterlegte Empfänger
+# Hinterlegte Empfänger (Kevin Woelki)
 EMAIL_RECIPIENTS = ["Kevin.woelki@augsburg.de", "kevinworlki@outlook.de"]
 
 DATEI = "zentral_archiv_secure.csv"
@@ -25,16 +25,14 @@ COLUMNS = ["Datum", "Beginn", "Ende", "Ort", "Hausnummer", "Zeugen", "Bericht", 
 
 st.set_page_config(page_title="KOD Augsburg - Einsatzbericht", page_icon="🚓", layout="wide") 
 
-# --- 2. UI SCHUTZ & STYLING (VERBIRGT MENÜLEISTE) ---
+# --- 2. UI SCHUTZ & STYLING (VERBIRGT MENÜLEISTE FÜR NUTZER) ---
 st.markdown("""
     <style>
-    /* Verbirgt die Streamlit Menüleiste und Header */
     #MainMenu {visibility: hidden;}
     header {visibility: hidden;}
     footer {visibility: hidden;}
     .stDeployButton {display:none;}
     
-    /* Karten-Styling */
     .report-card { 
         background-color: #ffffff; 
         border-radius: 10px; 
@@ -136,7 +134,7 @@ def create_official_pdf(row_data):
     pdf.cell(0, 10, f"Erstellt: {datetime.now().strftime('%d.%m.%Y')} | KOD Augsburg", align='C')
     return pdf.output(dest="S").encode("latin-1") 
 
-# --- 5. LOGIN LOGIK ---
+# --- 5. DIENST-LOGIN LOGIK ---
 if not st.session_state["auth"]:
     c1, c2, c3 = st.columns([1, 2, 1])
     with c2:
@@ -211,7 +209,7 @@ with st.expander("📝 NEUEN BERICHT ANLEGEN", expanded=True):
             st.success("✅ Bericht erfolgreich archiviert.")
             st.rerun() 
 
-# --- ARCHIV ---
+# --- 7. ARCHIV ---
 st.divider()
 st.header("📂 Einsatzarchiv")
 if os.path.exists(DATEI):
@@ -258,7 +256,7 @@ if os.path.exists(DATEI):
             else:
                 st.info("🔒 Admin-Bereich") 
 
-# --- SIDEBAR (ADMIN-LOGIN) ---
+# --- 8. SIDEBAR (ADMIN-LOGIN) ---
 with st.sidebar:
     st.image("https://www.augsburg.de/typo3conf/ext/mag_site/Resources/Public/Images/Logo/augsburg_logo.svg", width=150)
     st.title("🛡️ Administration")
