@@ -26,7 +26,7 @@ st.set_page_config(page_title="KOD Augsburg - Einsatzbericht", page_icon="🚓",
 # --- 2. CSS STYLING (SICHERHEIT & DESIGN) ---
 st.markdown("""
     <style>
-    /* SICHERHEIT: Streamlit-Standardelemente hart entfernen */
+    /* SICHERHEIT: Alle Streamlit-Standardelemente hart entfernen */
     #MainMenu {visibility: hidden;}
     header {visibility: hidden;}
     footer {visibility: hidden;}
@@ -101,11 +101,38 @@ def entschluesseln(safe_text):
 def create_official_pdf(row_data):
     pdf = FPDF()
     pdf.add_page()
+    # Header Simulation für Stadt Augsburg
     pdf.set_font("Arial", 'B', 16)
-    pdf.cell(0, 10, "STADT AUGSBURG - KOD BERICHT", ln=True)
+    pdf.cell(0, 10, "STADT AUGSBURG - ORDNUNGSAMT", ln=True, align='L')
+    pdf.set_font("Arial", '', 10)
+    pdf.cell(0, 5, "Kommunaler Ordnungsdienst (KOD)", ln=True)
+    pdf.line(10, 30, 200, 30)
+    pdf.ln(15)
+    
+    pdf.set_font("Arial", 'B', 14)
+    pdf.cell(0, 10, f"Einsatzbericht: {row_data['AZ']}", ln=True, align='C')
+    pdf.ln(5)
+
+    def add_pdf_row(label, value):
+        pdf.set_font("Arial", 'B', 10)
+        pdf.cell(45, 8, f" {label}:", border=1)
+        pdf.set_font("Arial", '', 10)
+        pdf.cell(145, 8, f" {value}", border=1, ln=True)
+
+    add_pdf_row("Datum", row_data['Datum'])
+    add_pdf_row("Zeitraum", f"{row_data['Beginn']} - {row_data['Ende']} Uhr")
+    add_pdf_row("Ort", f"{row_data['Ort']} {row_data['Hausnummer']}")
+    add_pdf_row("Kräfte", entschluesseln(row_data['Kraefte']))
+    
+    pdf.ln(10)
+    pdf.set_font("Arial", 'B', 12)
+    pdf.cell(0, 10, "Sachverhalt:", ln=True)
+    pdf.set_font("Arial", '', 11)
+    pdf.multi_cell(0, 7, entschluesseln(row_data['Bericht']), border=1)
+    
     return pdf.output(dest="S").encode("latin-1")
 
-# --- 5. LOGIN (ZENTRIERT WIE DAVOR) ---
+# --- 5. LOGIN (ZENTRIERT) ---
 if not st.session_state["auth"]:
     st.markdown("<br><br><br>", unsafe_allow_html=True)
     _, col_mid, _ = st.columns([1, 1.5, 1])
@@ -123,8 +150,7 @@ if not st.session_state["auth"]:
             if pwd_input == DIENST_PW:
                 st.session_state["auth"] = True
                 st.rerun()
-            else:
-                st.error("❌ Passwort falsch.")
+            else: st.error("❌ Passwort falsch.")
     st.stop()
 
 # --- 6. HAUPTPROGRAMM ---
@@ -159,7 +185,6 @@ with st.expander("📝 NEUEN BERICHT ANLEGEN", expanded=True):
     fw_check = k_col3.checkbox("🚒 Feuerwehr")
 
     with st.form("content_form"):
-        st.subheader("📄 Berichtsinhalt")
         inhalt = st.text_area("✍️ Sachverhalt", height=150)
         beteiligte = st.text_input("👥 Beteiligte / Zeugen")
         bild = st.file_uploader("📸 Foto hochladen", type=["jpg", "png"])
@@ -222,10 +247,17 @@ if os.path.exists(DATEI):
             img_data = entschluesseln(row['Foto'])
             if img_data != "-": st.image(base64.b64decode(img_data), width=400)
             
+            # --- PDF & LÖSCHEN OPTIONEN FÜR ADMIN ---
             if st.session_state["admin_auth"]:
-                if st.button("🗑️ Löschen", key=f"del_{idx}"):
+                st.divider()
+                pdf_data = create_official_pdf(row)
+                col_pdf, col_del = st.columns(2)
+                col_pdf.download_button("📄 PDF Export", pdf_data, f"KOD_Bericht_{row['AZ']}.pdf", "application/pdf", key=f"pdf_{idx}")
+                if col_del.button("🗑️ Bericht löschen", key=f"del_{idx}"):
                     df_archive.drop(idx).to_csv(DATEI, index=False)
                     st.rerun()
+            else:
+                st.info("🔒 Für PDF-Export oder Löschen bitte Admin-Login unten nutzen.")
 
 # --- ADMIN LOGIN GANZ UNTEN ---
 st.markdown("<br><br><br><hr>", unsafe_allow_html=True)
