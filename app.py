@@ -10,18 +10,18 @@ from cryptography.fernet import Fernet
 from streamlit_js_eval import get_geolocation 
 from fpdf import FPDF
 
-# --- 1. GLOBALE VARIABLEN & KONFIGURATION ---
+# --- 1. GLOBALE VARIABLEN ---
 DATEI = "zentral_archiv_secure.csv"
 LOGO_PFAD = "logo.png" 
 COLUMNS = ["Datum", "Beginn", "Ende", "Ort", "Hausnummer", "Zeugen", "Bericht", "AZ", "Foto", "GPS", "Kraefte"]
 ADMIN_PW = "admin789"
-# NEU: Passwort auf 1990 geändert
-DIENST_PW = st.secrets.get("dienst_password", "1990")
+# ÄNDERUNG: Passwort ist jetzt 1990
+DIENST_PW = "1990" 
 MASTER_KEY = st.secrets.get("master_key", "AugsburgSicherheit32ZeichenCheck!")
 
+# --- 2. SEITEN-KONFIGURATION ---
 st.set_page_config(page_title="KOD Augsburg - Einsatzbericht", page_icon="🚓", layout="wide") 
 
-# --- 2. CSS STYLING ---
 st.markdown("""
     <style>
     .report-card { 
@@ -43,7 +43,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True) 
 
-# --- 3. SICHERHEIT & VERSCHLÜSSELUNG ---
+# --- 3. SICHERHEIT ---
 if "auth" not in st.session_state: st.session_state["auth"] = False
 if "admin_auth" not in st.session_state: st.session_state["admin_auth"] = False 
 
@@ -60,7 +60,7 @@ def entschluesseln(safe_text):
     try: return get_cipher().decrypt(safe_text.encode()).decode()
     except: return "[DATENFEHLER]" 
 
-# --- 4. PDF GENERIERUNG ---
+# --- 4. PDF FUNKTION ---
 def create_official_pdf(row_data):
     pdf = FPDF()
     pdf.add_page()
@@ -128,6 +128,7 @@ def create_official_pdf(row_data):
 # --- 5. APP LOGIK ---
 if not st.session_state["auth"]:
     st.title("🚓 KOD Augsburg")
+    # Login mit 1990
     if st.text_input("🔑 Dienstpasswort", type="password") == DIENST_PW:
         st.session_state["auth"] = True
         st.rerun()
@@ -149,7 +150,7 @@ with st.expander("📝 NEUEN BERICHT ANLEGEN", expanded=True):
         az_val = c4.text_input("📂 AZ (Aktenzeichen)")
         
         o1, o2 = st.columns([3, 1])
-        ort_val = o1.text_input("🗺️ Einsatzort", placeholder="Straße, Platz...")
+        ort_val = o1.text_input("🗺️ Einsatzort")
         hnr_val = o2.text_input("Hausnr.")
 
         st.subheader("👮 Beteiligte Behörden")
@@ -166,7 +167,7 @@ with st.expander("📝 NEUEN BERICHT ANLEGEN", expanded=True):
         st.subheader("📄 Berichtsinhalt")
         inhalt = st.text_area("✍️ Sachverhalt", height=150)
         beteiligte = st.text_input("👥 Beteiligte / Zeugen")
-        bild = st.file_uploader("📸 Beweisfoto hochladen", type=["jpg", "png", "jpeg"])
+        bild = st.file_uploader("📸 Foto hochladen", type=["jpg", "png", "jpeg"])
 
         if st.form_submit_button("✅ BERICHT SPEICHERN"):
             k_list = ["KOD"]
@@ -192,7 +193,7 @@ with st.expander("📝 NEUEN BERICHT ANLEGEN", expanded=True):
             df = pd.read_csv(DATEI) if os.path.exists(DATEI) else pd.DataFrame(columns=COLUMNS)
             df = pd.concat([df, pd.DataFrame([new_data])], ignore_index=True)
             df.to_csv(DATEI, index=False)
-            st.success("✅ Bericht wurde im Archiv gespeichert.")
+            st.success("✅ Bericht gespeichert.")
             st.rerun()
 
 # --- ARCHIV ---
@@ -214,49 +215,38 @@ if os.path.exists(DATEI):
                 </div>
                 <hr style="margin: 10px 0;">
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                    <div class="metric-box">📍 <b>Einsatzort:</b> {row['Ort']} {row['Hausnummer']}</div>
+                    <div class="metric-box">📍 <b>Ort:</b> {row['Ort']} {row['Hausnummer']}</div>
                     <div class="metric-box">🕒 <b>Zeit:</b> {row['Beginn']} - {row['Ende']}</div>
                     <div class="metric-box">👮 <b>Kräfte:</b> {entschluesseln(row['Kraefte'])}</div>
-                    <div class="metric-box">🌐 <b>GPS:</b> {row['GPS']}</div>
                 </div>
             </div>
         """, unsafe_allow_html=True)
         
-        # Geänderte Spaltenverteilung für Admin-Abhängigkeit
-        c_det, c_admin_tools = st.columns([3, 2])
-        
+        c_det, c_admin_only = st.columns([3, 1])
         with c_det:
-            with st.expander("👁️ Details anzeigen"):
-                st.info(f"**✍️ Sachverhalt:**\n{entschluesseln(row['Bericht'])}")
-                st.warning(f"**👥 Beteiligte:** {entschluesseln(row['Zeugen'])}")
+            with st.expander("👁️ Details"):
+                st.info(f"**Sachverhalt:**\n{entschluesseln(row['Bericht'])}")
+                st.warning(f"**Beteiligte:** {entschluesseln(row['Zeugen'])}")
                 img_data = entschluesseln(row['Foto'])
-                if img_data != "-": st.image(base64.b64decode(img_data), caption="Beweismittel", width=400)
+                if img_data != "-": st.image(base64.b64decode(img_data), width=400)
         
-        with c_admin_tools:
+        with c_admin_only:
+            # ÄNDERUNG: PDF-Export nur, wenn admin_auth aktiv ist
             if st.session_state["admin_auth"]:
-                c_pdf, c_del = st.columns(2)
-                with c_pdf:
-                    pdf_bytes = create_official_pdf(row)
-                    st.download_button("📄 PDF Export", pdf_bytes, f"Bericht_{row['AZ']}.pdf", "application/pdf", key=f"pdf_{idx}")
-                with c_del:
-                    if st.button("🗑️ Löschen", key=f"del_{idx}"):
-                        df_archive.drop(idx).to_csv(DATEI, index=False)
-                        st.rerun()
+                pdf_bytes = create_official_pdf(row)
+                st.download_button("📄 PDF Export", pdf_bytes, f"Bericht_{row['AZ']}.pdf", "application/pdf", key=f"pdf_{idx}")
+                if st.button("🗑️ Löschen", key=f"del_{idx}"):
+                    df_archive.drop(idx).to_csv(DATEI, index=False)
+                    st.rerun()
             else:
-                st.warning("🔒 PDF & Löschen nur für Admins")
+                st.caption("🔒 Export gesperrt (Admin-Login nötig)")
 
 # --- ADMIN ---
 with st.sidebar:
     st.title("🛡️ Administration")
     if st.checkbox("🔑 Admin-Modus"):
-        if st.text_input("Passwort", type="password") == ADMIN_PW:
+        if st.text_input("Admin-Passwort", type="password") == ADMIN_PW:
             st.session_state["admin_auth"] = True
             st.success("Admin-Modus aktiv")
-            if st.button("🚨 ARCHIV KOMPLETT LEEREN"):
-                if os.path.exists(DATEI): os.remove(DATEI)
-                st.rerun()
-        else: 
+        else:
             st.session_state["admin_auth"] = False
-            if st.session_state.get("admin_auth") == False:
-                st.error("Falsches Admin-Passwort")
-
