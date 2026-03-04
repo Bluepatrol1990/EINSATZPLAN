@@ -84,7 +84,7 @@ if not st.session_state["auth"]:
     st.stop()
 
 # --- 5. HAUPTBEREICH ---
-st.title("📋 Einsatzbericht System")
+st.title("📋 Einsatzbericht")
 
 # ... Hier folgt dein Berichts-Formular und das Archiv ...
 
