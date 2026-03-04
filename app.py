@@ -14,17 +14,35 @@ from fpdf import FPDF
 DATEI = "zentral_archiv_secure.csv"
 LOGO_PFAD = "logo.png" 
 COLUMNS = ["Datum", "Beginn", "Ende", "Ort", "Hausnummer", "Zeugen", "Bericht", "AZ", "Foto", "GPS", "Kraefte"]
-
-# Passwörter
 ADMIN_PW = "admin789"
-DIENST_PW = "1990"  # Geändert auf 1990
-
-# Sicherheits-Key (sollte normalerweise in st.secrets stehen)
+DIENST_PW = "1990" 
 MASTER_KEY = st.secrets.get("master_key", "AugsburgSicherheit32ZeichenCheck!")
 
 st.set_page_config(page_title="KOD Augsburg - Einsatzbericht", page_icon="🚓", layout="wide") 
 
-# --- 2. SICHERHEIT & VERSCHLÜSSELUNG ---
+# --- 2. CSS STYLING (Wiederhergestellt) ---
+st.markdown("""
+    <style>
+    .report-card { 
+        background-color: #ffffff; 
+        border-radius: 10px; 
+        padding: 20px; 
+        border-left: 10px solid #004b95; 
+        margin-bottom: 15px; 
+        color: #333333;
+        border: 1px solid #dddddd;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    .metric-box {
+        background-color: #f8f9fa;
+        padding: 10px;
+        border-radius: 5px;
+        border: 1px solid #eee;
+    }
+    </style>
+    """, unsafe_allow_html=True) 
+
+# --- 3. SICHERHEIT & VERSCHLÜSSELUNG ---
 if "auth" not in st.session_state: st.session_state["auth"] = False
 if "admin_auth" not in st.session_state: st.session_state["admin_auth"] = False 
 
@@ -41,7 +59,7 @@ def entschluesseln(safe_text):
     try: return get_cipher().decrypt(safe_text.encode()).decode()
     except: return "[DATENFEHLER]" 
 
-# --- 3. PDF GENERIERUNG ---
+# --- 4. PDF GENERIERUNG ---
 def create_official_pdf(row_data):
     pdf = FPDF()
     pdf.add_page()
@@ -106,7 +124,7 @@ def create_official_pdf(row_data):
     pdf.cell(0, 10, f"Erstellt: {datetime.now().strftime('%d.%m.%Y')} | Augsburg", align='C')
     return pdf.output(dest="S").encode("latin-1")
 
-# --- 4. LOGIN LOGIK ---
+# --- 5. APP LOGIK ---
 if not st.session_state["auth"]:
     st.title("🚓 KOD Augsburg")
     if st.text_input("🔑 Dienstpasswort", type="password") == DIENST_PW:
@@ -114,9 +132,9 @@ if not st.session_state["auth"]:
         st.rerun()
     st.stop()
 
-# --- 5. HAUPTMENÜ & FORMULAR ---
 st.title("📋 Einsatzbericht")
 
+# --- FORMULAR ---
 with st.expander("📝 NEUEN BERICHT ANLEGEN", expanded=True):
     loc = get_geolocation()
     gps_val = f"{loc['coords']['latitude']}, {loc['coords']['longitude']}" if loc else "📍 GPS nicht erfasst"
@@ -176,7 +194,7 @@ with st.expander("📝 NEUEN BERICHT ANLEGEN", expanded=True):
             st.success("✅ Bericht gespeichert.")
             st.rerun()
 
-# --- 6. ARCHIV & ADMIN-TOOLS ---
+# --- ARCHIV (Originales Layout wiederhergestellt) ---
 st.divider()
 st.header("📂 Einsatzarchiv")
 if os.path.exists(DATEI):
@@ -187,22 +205,32 @@ if os.path.exists(DATEI):
         df_archive = df_archive[df_archive['AZ'].str.contains(suche, case=False) | df_archive['Ort'].str.contains(suche, case=False)]
 
     for idx, row in df_archive.iloc[::-1].iterrows():
+        # Hier ist das ursprüngliche Card-Layout
         st.markdown(f"""
-            <div style="background-color: #f0f2f6; border-radius: 10px; padding: 15px; margin-bottom: 10px; border-left: 5px solid #004b95;">
-                <b>AZ: {row['AZ']}</b> | 📅 {row['Datum']} | 📍 {row['Ort']} {row['Hausnummer']}<br>
-                <small>🕒 {row['Beginn']} - {row['Ende']} Uhr | 👮 {entschluesseln(row['Kraefte'])}</small>
+            <div class="report-card">
+                <div style="display: flex; justify-content: space-between;">
+                    <span style="font-size: 1.2em;">📂 <strong>AZ: {row['AZ']}</strong></span>
+                    <span>📅 {row['Datum']}</span>
+                </div>
+                <hr style="margin: 10px 0;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <div class="metric-box">📍 <b>Einsatzort:</b> {row['Ort']} {row['Hausnummer']}</div>
+                    <div class="metric-box">🕒 <b>Zeit:</b> {row['Beginn']} - {row['Ende']}</div>
+                    <div class="metric-box">👮 <b>Kräfte:</b> {entschluesseln(row['Kraefte'])}</div>
+                    <div class="metric-box">🌐 <b>GPS:</b> {row['GPS']}</div>
+                </div>
             </div>
         """, unsafe_allow_html=True)
         
-        c_det, c_admin = st.columns([3, 1])
+        c_det, c_admin_only = st.columns([3, 1])
         with c_det:
             with st.expander("👁️ Details anzeigen"):
-                st.info(f"**Sachverhalt:**\n{entschluesseln(row['Bericht'])}")
-                st.warning(f"**Beteiligte:** {entschluesseln(row['Zeugen'])}")
+                st.info(f"**✍️ Sachverhalt:**\n{entschluesseln(row['Bericht'])}")
+                st.warning(f"**👥 Beteiligte:** {entschluesseln(row['Zeugen'])}")
                 img_data = entschluesseln(row['Foto'])
                 if img_data != "-": st.image(base64.b64decode(img_data), width=400)
         
-        with c_admin:
+        with c_admin_only:
             if st.session_state.get("admin_auth", False):
                 pdf_bytes = create_official_pdf(row)
                 st.download_button("📄 PDF Export", pdf_bytes, f"Bericht_{row['AZ']}.pdf", "application/pdf", key=f"pdf_{idx}")
@@ -210,9 +238,9 @@ if os.path.exists(DATEI):
                     df_archive.drop(idx).to_csv(DATEI, index=False)
                     st.rerun()
             else:
-                st.info("🔒 Export: Admin nötig")
+                st.info("🔒 Admin nötig")
 
-# --- 7. SIDEBAR (ADMIN-LOGIN) ---
+# --- ADMIN SIDEBAR ---
 with st.sidebar:
     st.title("🛡️ Administration")
     if st.checkbox("🔑 Admin-Modus"):
