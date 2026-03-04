@@ -10,7 +10,7 @@ from cryptography.fernet import Fernet
 from streamlit_js_eval import get_geolocation 
 from fpdf import FPDF
 
-# --- 1. GLOBALE VARIABLEN & KONFIGURATION ---
+# --- 1. GLOBALE VARIABLEN ---
 DATEI = "zentral_archiv_secure.csv"
 LOGO_PFAD = "logo.png" 
 COLUMNS = ["Datum", "Beginn", "Ende", "Ort", "Hausnummer", "Zeugen", "Bericht", "AZ", "Foto", "GPS", "Kraefte"]
@@ -23,10 +23,9 @@ RECIPIENTS = ["Kevin.woelki@augsburg.de", "kevinworlki@outlook.de"]
 
 st.set_page_config(page_title="KOD Augsburg - Einsatzbericht", page_icon="🚓", layout="wide") 
 
-# --- 2. CSS STYLING (SICHERHEIT & DESIGN) ---
+# --- 2. CSS STYLING ---
 st.markdown("""
     <style>
-    /* SICHERHEIT: Alle Streamlit-Standardelemente hart entfernen */
     #MainMenu {visibility: hidden;}
     header {visibility: hidden;}
     footer {visibility: hidden;}
@@ -35,52 +34,25 @@ st.markdown("""
     [data-testid="stStatusWidget"] {display:none !important;}
     [data-testid="stSidebar"] {display: none;}
 
-    /* FIXIERTER HEADER */
     .sticky-header {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        background-color: #004b95;
-        color: white;
-        padding: 15px 25px;
-        z-index: 9999;
+        position: fixed; top: 0; left: 0; width: 100%;
+        background-color: #004b95; color: white;
+        padding: 15px 25px; z-index: 9999;
         border-bottom: 3px solid #ffcc00;
         box-shadow: 0 4px 10px rgba(0,0,0,0.3);
     }
-
     .main-content { margin-top: 100px; }
-
     .report-card { 
-        background-color: #ffffff; 
-        border-radius: 10px; 
-        padding: 20px; 
-        border-left: 10px solid #004b95; 
-        margin-bottom: 15px; 
-        color: #333333;
-        border: 1px solid #dddddd;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        background-color: #ffffff; border-radius: 10px; padding: 20px; 
+        border-left: 10px solid #004b95; margin-bottom: 15px; 
+        border: 1px solid #dddddd; box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
-    .metric-box {
-        background-color: #f8f9fa;
-        padding: 10px;
-        border-radius: 5px;
-        border: 1px solid #eee;
-    }
-    
-    /* LOGIN BOX DESIGN */
-    .login-box {
-        text-align: center; 
-        padding: 30px; 
-        border: 2px solid #004b95; 
-        border-radius: 15px; 
-        background-color: #f8f9fa; 
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-    }
+    .metric-box { background-color: #f8f9fa; padding: 10px; border-radius: 5px; border: 1px solid #eee; }
+    .login-box { text-align: center; padding: 30px; border: 2px solid #004b95; border-radius: 15px; background-color: #f8f9fa; }
     </style>
     """, unsafe_allow_html=True) 
 
-# --- 3. SICHERHEITSFUNKTIONEN ---
+# --- 3. VERSCHLÜSSELUNG ---
 if "auth" not in st.session_state: st.session_state["auth"] = False
 if "admin_auth" not in st.session_state: st.session_state["admin_auth"] = False 
 
@@ -97,42 +69,80 @@ def entschluesseln(safe_text):
     try: return get_cipher().decrypt(safe_text.encode()).decode()
     except: return "[DATENFEHLER]" 
 
-# --- 4. PDF GENERIERUNG ---
+# --- 4. AMTLICHE PDF GENERIERUNG ---
 def create_official_pdf(row_data):
     pdf = FPDF()
     pdf.add_page()
-    # Header Simulation für Stadt Augsburg
+    
+    # Header mit Logo
+    if os.path.exists(LOGO_PFAD):
+        pdf.image(LOGO_PFAD, x=160, y=10, w=35)
+    
     pdf.set_font("Arial", 'B', 16)
-    pdf.cell(0, 10, "STADT AUGSBURG - ORDNUNGSAMT", ln=True, align='L')
+    pdf.cell(0, 10, "STADT AUGSBURG", ln=True)
+    pdf.set_font("Arial", 'B', 12)
+    pdf.cell(0, 7, "ORDNUNGSAMT", ln=True)
     pdf.set_font("Arial", '', 10)
     pdf.cell(0, 5, "Kommunaler Ordnungsdienst (KOD)", ln=True)
-    pdf.line(10, 30, 200, 30)
+    pdf.line(10, 38, 200, 38)
     pdf.ln(15)
     
     pdf.set_font("Arial", 'B', 14)
-    pdf.cell(0, 10, f"Einsatzbericht: {row_data['AZ']}", ln=True, align='C')
+    pdf.cell(0, 10, "AMTLICHER EINSATZBERICHT", ln=True, align='C')
     pdf.ln(5)
 
-    def add_pdf_row(label, value):
+    def add_table_row(label, value):
         pdf.set_font("Arial", 'B', 10)
-        pdf.cell(45, 8, f" {label}:", border=1)
+        pdf.set_fill_color(240, 240, 240)
+        pdf.cell(45, 9, f" {label}", border=1, fill=True)
         pdf.set_font("Arial", '', 10)
-        pdf.cell(145, 8, f" {value}", border=1, ln=True)
+        pdf.cell(145, 9, f" {value}", border=1, ln=True)
 
-    add_pdf_row("Datum", row_data['Datum'])
-    add_pdf_row("Zeitraum", f"{row_data['Beginn']} - {row_data['Ende']} Uhr")
-    add_pdf_row("Ort", f"{row_data['Ort']} {row_data['Hausnummer']}")
-    add_pdf_row("Kräfte", entschluesseln(row_data['Kraefte']))
+    # Basis-Daten
+    add_table_row("Aktenzeichen (AZ)", row_data['AZ'])
+    add_table_row("Datum", row_data['Datum'])
+    add_table_row("Zeitraum", f"{row_data['Beginn']} - {row_data['Ende']} Uhr")
+    add_table_row("Einsatzort", f"{row_data['Ort']} {row_data['Hausnummer']}")
+    add_table_row("Kräfte", entschluesseln(row_data['Kraefte']))
+    add_table_row("GPS-Daten", row_data['GPS'])
     
     pdf.ln(10)
     pdf.set_font("Arial", 'B', 12)
-    pdf.cell(0, 10, "Sachverhalt:", ln=True)
+    pdf.cell(0, 10, "Sachverhalt / Feststellungen:", ln=True)
     pdf.set_font("Arial", '', 11)
-    pdf.multi_cell(0, 7, entschluesseln(row_data['Bericht']), border=1)
+    pdf.multi_cell(0, 7, entschluesseln(row_data['Bericht']), border='T')
+    
+    pdf.ln(5)
+    pdf.set_font("Arial", 'B', 12)
+    pdf.cell(0, 10, "Beteiligte / Zeugen:", ln=True)
+    pdf.set_font("Arial", '', 11)
+    pdf.multi_cell(0, 7, entschluesseln(row_data['Zeugen']), border='T')
+
+    # FOTO-ANLAGE (Falls vorhanden)
+    img_data_enc = entschluesseln(row_data['Foto'])
+    if img_data_enc != "-":
+        pdf.add_page()
+        pdf.set_font("Arial", 'B', 14)
+        pdf.cell(0, 10, "Anlage: Beweismittelfoto", ln=True, align='C')
+        pdf.ln(10)
+        try:
+            img_bytes = base64.b64decode(img_data_enc)
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
+                tmp.write(img_bytes)
+                tmp_path = tmp.name
+            # Bild skalieren, damit es auf die Seite passt
+            pdf.image(tmp_path, x=20, y=40, w=170)
+            os.unlink(tmp_path) 
+        except Exception as e:
+            pdf.cell(0, 10, f"[Fehler beim Laden des Fotos: {e}]", ln=True)
+
+    pdf.set_y(-25)
+    pdf.set_font("Arial", 'I', 8)
+    pdf.cell(0, 10, f"Erstellt am: {datetime.now().strftime('%d.%m.%Y')} | Dokumenten-ID: {row_data['AZ']}", align='C')
     
     return pdf.output(dest="S").encode("latin-1")
 
-# --- 5. LOGIN (ZENTRIERT) ---
+# --- 5. LOGIN ---
 if not st.session_state["auth"]:
     st.markdown("<br><br><br>", unsafe_allow_html=True)
     _, col_mid, _ = st.columns([1, 1.5, 1])
@@ -146,14 +156,12 @@ if not st.session_state["auth"]:
             </div>
         """, unsafe_allow_html=True)
         pwd_input = st.text_input("Dienstpasswort", type="password", label_visibility="collapsed", placeholder="Passwort eingeben...")
-        if pwd_input:
-            if pwd_input == DIENST_PW:
-                st.session_state["auth"] = True
-                st.rerun()
-            else: st.error("❌ Passwort falsch.")
+        if pwd_input == DIENST_PW:
+            st.session_state["auth"] = True
+            st.rerun()
     st.stop()
 
-# --- 6. HAUPTPROGRAMM ---
+# --- 6. HAUPTSEITE ---
 st.markdown("""
     <div class="sticky-header">
         <h2 style="margin:0;">📋 KOD Augsburg - Einsatzbericht</h2>
@@ -200,7 +208,7 @@ with st.expander("📝 NEUEN BERICHT ANLEGEN", expanded=True):
                 img = Image.open(bild).convert("RGB")
                 img.thumbnail((1200, 1200))
                 buf = io.BytesIO()
-                img.save(buf, format="JPEG")
+                img.save(buf, format="JPEG", quality=80)
                 b64_img = base64.b64encode(buf.getvalue()).decode()
 
             new_data = {
@@ -247,19 +255,16 @@ if os.path.exists(DATEI):
             img_data = entschluesseln(row['Foto'])
             if img_data != "-": st.image(base64.b64decode(img_data), width=400)
             
-            # --- PDF & LÖSCHEN OPTIONEN FÜR ADMIN ---
             if st.session_state["admin_auth"]:
                 st.divider()
-                pdf_data = create_official_pdf(row)
-                col_pdf, col_del = st.columns(2)
-                col_pdf.download_button("📄 PDF Export", pdf_data, f"KOD_Bericht_{row['AZ']}.pdf", "application/pdf", key=f"pdf_{idx}")
-                if col_del.button("🗑️ Bericht löschen", key=f"del_{idx}"):
+                pdf_bytes = create_official_pdf(row)
+                c_pdf, c_del = st.columns(2)
+                c_pdf.download_button("📄 PDF Export", pdf_bytes, f"KOD_Bericht_{row['AZ']}.pdf", "application/pdf", key=f"pdf_{idx}")
+                if c_del.button("🗑️ Bericht löschen", key=f"del_{idx}"):
                     df_archive.drop(idx).to_csv(DATEI, index=False)
                     st.rerun()
-            else:
-                st.info("🔒 Für PDF-Export oder Löschen bitte Admin-Login unten nutzen.")
 
-# --- ADMIN LOGIN GANZ UNTEN ---
+# --- ADMIN LOGIN ---
 st.markdown("<br><br><br><hr>", unsafe_allow_html=True)
 with st.expander("🛡️ Administration"):
     if not st.session_state["admin_auth"]:
