@@ -23,38 +23,29 @@ RECIPIENTS = ["Kevin.woelki@augsburg.de", "kevinworlki@outlook.de"]
 
 st.set_page_config(page_title="KOD Augsburg - Einsatzbericht", page_icon="🚓", layout="wide") 
 
-# --- 2. MASSIVER CSS & JS BLOCK ZUM AUSBLENDEN VON SYSTEM-ELEMENTEN ---
+# --- 2. CSS STYLING (SICHERHEIT & DESIGN) ---
 st.markdown("""
     <style>
-    /* Versteckt Standard-Elemente */
-    #MainMenu {visibility: hidden !important;}
-    header {visibility: hidden !important;}
-    footer {visibility: hidden !important;}
+    #MainMenu {visibility: hidden;}
+    header {visibility: hidden;}
+    footer {visibility: hidden;}
     
-    /* Blockiert die untere rechte Ecke (Manage App / Streamlit Cloud Overlay) */
-    [data-testid="stStatusWidget"],
-    [data-testid="stDecoration"],
+    [data-testid="stStatusWidget"], 
+    [data-testid="stDecoration"], 
     [data-testid="stHeader"],
     .stAppDeployButton,
-    div[data-testid="stStatusWidget"],
-    .st-emotion-cache-1wbqy5l,
-    .st-emotion-cache-1647z74,
-    .st-emotion-cache-zt5igj,
-    .viewerBadge_container__1QS13,
-    .styles_viewerBadge__1yB_V,
-    iframe[title="manage-app"],
-    #stConnectionStatus {
+    div.stDeployButton,
+    footer {
         display: none !important;
-        visibility: hidden !important;
-        height: 0 !important;
-        width: 0 !important;
     }
 
-    /* Versteckt den Toolbar-Button oben rechts falls vorhanden */
-    .stActionButton { display: none !important; }
-    
-    /* Verhindert Scrollen zu entfernten Elementen */
-    .stApp { margin-bottom: -50px !important; }
+    button[title="View menu"], 
+    .stActionButton, 
+    #stConnectionStatus { 
+        display: none !important; 
+    }
+
+    [data-testid="stSidebar"] { display: none; }
 
     .sticky-header {
         position: fixed; top: 0; left: 0; width: 100%;
@@ -63,7 +54,9 @@ st.markdown("""
         border-bottom: 3px solid #ffcc00;
         box-shadow: 0 4px 10px rgba(0,0,0,0.3);
     }
+
     .main-content { margin-top: 100px; }
+
     .report-card { 
         background-color: #ffffff; border-radius: 10px; padding: 20px; 
         border-left: 10px solid #004b95; margin-bottom: 15px; 
@@ -74,29 +67,13 @@ st.markdown("""
         background-color: #f8f9fa; padding: 10px; border-radius: 5px; 
         border: 1px solid #eee; font-size: 0.9em;
     }
+    
     .login-box {
         text-align: center; padding: 30px; border: 2px solid #004b95; 
         border-radius: 15px; background-color: #f8f9fa; 
         box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     }
     </style>
-
-    <script>
-    // JavaScript Sicherheits-Check: Entfernt das Overlay nach dem Laden
-    const removeElements = () => {
-        const selectors = [
-            'iframe[title="manage-app"]',
-            '.stAppDeployButton',
-            'div[data-testid="stStatusWidget"]',
-            'footer'
-        ];
-        selectors.forEach(s => {
-            const el = document.querySelector(s);
-            if (el) el.remove();
-        });
-    };
-    setInterval(removeElements, 1000); // Prüft jede Sekunde
-    </script>
     """, unsafe_allow_html=True) 
 
 # --- 3. SICHERHEITSFUNKTIONEN ---
@@ -199,6 +176,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 with st.expander("📝 NEUEN BERICHT ANLEGEN", expanded=True):
+    # FEHLERBEHEBUNG GPS:
     loc = get_geolocation()
     if loc and 'coords' in loc:
         gps_val = f"{loc['coords']['latitude']}, {loc['coords']['longitude']}"
